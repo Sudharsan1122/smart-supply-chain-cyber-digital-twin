@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="kpis">
+    <div class="kpi"><div class="kpi-label">Assets</div><div class="kpi-value">{{ summary.nodes or 0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">Edges</div><div class="kpi-value">{{ summary.edges or 0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">MQTT</div><div class="kpi-value {% if mqtt.connected %}good{% else %}bad{% endif %}">{{ 'connected' if mqtt.connected else 'offline' }}</div></div>
+    <div class="kpi"><div class="kpi-label">Database</div><div class="kpi-value {% if ready.checks and ready.checks.database == 'connected' %}good{% else %}bad{% endif %}">{{ (ready.checks.database if ready.checks else 'unknown') }}</div></div>
+    <div class="kpi"><div class="kpi-label">Twin</div><div class="kpi-value">{{ (ready.checks.twin if ready.checks else 'unknown') }}</div></div>
+</section>
+<div class="grid-2">
+    <section class="card">
+        <h2>Top 10 by Risk</h2>
+        <table class="tbl"><thead><tr><th>#</th><th>Asset</th><th>Type</th><th>Score</th></tr></thead><tbody>
+        {% for a in risk.ranked %}
+        <tr><td>{{ loop.index }}</td><td class="mono">{{ a.asset_id }}</td><td><span class="pill">{{ a.asset_type }}</span></td>
+        <td><span class="badge {{ a.score | score_color }}">{{ a.score }}</span></td></tr>
+        {% else %}<tr><td colspan="4" class="muted">No risk scores yet.</td></tr>{% endfor %}
+        </tbody></table>
+    </section>
+    <section class="card">
+        <h2>Asset States</h2>
+        <div class="chips">
+        {% for state, count in state_summary.by_state.items() %}<span class="chip">{{ state }}: <b>{{ count }}</b></span>
+        {% else %}<span class="muted">No state data.</span>{% endfor %}
+        </div>
+    </section>
+</div>
+<section class="card">
+    <h2>All Assets</h2>
+    <div class="assets-grid">
+    {% for a in assets %}<div class="asset-card">
+        <div class="asset-id mono">{{ a.asset_id }}</div>
+        <div class="asset-name">{{ a.name }}</div>
+        <div class="asset-meta"><span class="pill">{{ a.asset_type }}</span>
+        {% if a.state %}<span class="badge state-{{ a.state }}">{{ a.state }}</span>{% endif %}</div>
+    </div>{% endfor %}
+    </div>
+</section>
+{% endblock %}

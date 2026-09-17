@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Supply Chain Cyber Digital Twin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+<header class="topbar">
+    <div class="brand"><span class="logo">SS</span> <span class="title">Smart Supply Chain Cyber Digital Twin</span></div>
+    <nav class="tabs">
+        <a href="/" class="{% if active == 'live' %}active{% endif %}">Live Fleet</a>
+        <a href="/stories" class="{% if active == 'stories' %}active{% endif %}">Attack Stories</a>
+        <a href="/threat-intel" class="{% if active == 'threat-intel' %}active{% endif %}">Threat Intel</a>
+        <a href="/triage" class="{% if active == 'triage' %}active{% endif %}">Triage</a>
+    </nav>
+    <div class="status"><span id="refresh-badge">auto-refresh {{ refresh }}s</span></div>
+</header>
+<main class="container">{% block content %}{% endblock %}</main>
+<footer class="footer"><span>API: <code>{{ api_url }}</code></span></footer>
+<script>window.DASHBOARD = { refreshSeconds: {{ refresh }} };</script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

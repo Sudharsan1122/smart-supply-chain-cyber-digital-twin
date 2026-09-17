@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="kpis">
+    <div class="kpi"><div class="kpi-label">Total Triaged</div><div class="kpi-value">{{ metrics.total or 0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">Precision</div><div class="kpi-value">{{ '%.2f' % (metrics.precision or 0) }}</div></div>
+    <div class="kpi"><div class="kpi-label">Recall</div><div class="kpi-value">{{ '%.2f' % (metrics.recall or 0) }}</div></div>
+    <div class="kpi"><div class="kpi-label">F1</div><div class="kpi-value">{{ '%.2f' % (metrics.f1 or 0) }}</div></div>
+</section>
+<section class="card">
+    <h2>Confusion Matrix</h2>
+    <table class="confusion">
+        <tr><th></th><th>Pred +</th><th>Pred -</th></tr>
+        <tr><th>Act +</th><td class="cm tp">{{ metrics.tp }}</td><td class="cm fn">{{ metrics.fn }}</td></tr>
+        <tr><th>Act -</th><td class="cm fp">{{ metrics.fp }}</td><td class="cm tn">{{ metrics.tn }}</td></tr>
+    </table>
+</section>
+<section class="card">
+    <h2>Recent Triage</h2>
+    <table class="tbl"><thead><tr><th>Detection</th><th>Rule</th><th>Severity</th><th>Verdict</th><th>Confidence</th></tr></thead><tbody>
+    {% for t in recent %}<tr><td class="mono small">{{ t.detection_id }}</td><td class="mono small">{{ t.rule_id or '---' }}</td>
+    <td><span class="badge sev-{{ t.severity }}">{{ t.severity }}</span></td>
+    <td><span class="badge">{{ t.verdict }}</span></td><td>{{ '%.2f' % t.confidence if t.confidence is not none else '---' }}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">No triage yet.</td></tr>{% endfor %}
+    </tbody></table>
+</section>
+{% endblock %}

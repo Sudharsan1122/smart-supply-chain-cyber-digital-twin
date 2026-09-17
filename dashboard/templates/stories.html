@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Attack Stories</h2>
+    <table class="tbl"><thead><tr><th>Attack ID</th><th>Title</th><th>Status</th><th>Started</th></tr></thead><tbody>
+    {% for s in stories %}<tr>
+        <td class="mono small">{{ s.attack_id[:16] }}</td>
+        <td>{{ s.title }}</td>
+        <td><span class="badge state-{{ s.status }}">{{ s.status }}</span></td>
+        <td class="muted small">{{ s.created_at | fmt_ts }}</td>
+    </tr>{% else %}<tr><td colspan="4" class="muted">No attack stories yet.</td></tr>{% endfor %}
+    </tbody></table>
+</section>
+{% endblock %}

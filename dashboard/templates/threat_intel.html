@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="kpis">
+    <div class="kpi"><div class="kpi-label">Total IOCs</div><div class="kpi-value">{{ summary.total or 0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">Enriched</div><div class="kpi-value">{{ cache.enriched_iocs or 0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">Un-enriched</div><div class="kpi-value">{{ cache.unenriched_iocs or 0 }}</div></div>
+</section>
+<section class="card">
+    <h2>IOC Type Breakdown</h2>
+    <div class="chips">
+    {% for t, c in (summary.by_type or {}).items() %}<span class="chip">{{ t }}: <b>{{ c }}</b></span>
+    {% else %}<span class="muted">No IOCs yet.</span>{% endfor %}
+    </div>
+</section>
+<section class="card">
+    <h2>Recent IOCs</h2>
+    <table class="tbl"><thead><tr><th>Value</th><th>Type</th><th>Confidence</th><th>Last Seen</th></tr></thead><tbody>
+    {% for i in iocs %}<tr><td class="mono small">{{ i.value }}</td><td><span class="pill">{{ i.ioc_type }}</span></td>
+    <td>{% if i.confidence %}<span class="badge {% if i.confidence >= 0.7 %}danger{% elif i.confidence >= 0.4 %}warn{% else %}safe{% endif %}">{{ i.confidence }}</span>{% else %}---{% endif %}</td>
+    <td class="muted small">{{ i.last_seen | fmt_ts }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">No IOCs extracted yet.</td></tr>{% endfor %}
+    </tbody></table>
+</section>
+{% endblock %}
