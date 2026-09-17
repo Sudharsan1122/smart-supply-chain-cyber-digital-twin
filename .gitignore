@@ -1,19 +1,45 @@
+﻿# Virtual Environments
 venv/
 env/
 .venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*$py.class
+
+# Testing & Coverage
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 coverage.json
 coverage.xml
+
+# Environment & Secrets
 .env
+.env.*
+!.env.example
+
+# ML Artifacts
 ml/artifacts/*.joblib
 ml/artifacts/*.json
 !.gitkeep
-.DS_Store
-.idea/
+
+# IDEs & Editors
 .vscode/
+.idea/
+*.swp
+*.swo
+
+# OS Generated
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Logs
 *.log

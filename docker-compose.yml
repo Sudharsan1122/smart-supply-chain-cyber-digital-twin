@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16-alpine
     container_name: sscdt-postgres
@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
@@ -19,6 +19,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - sscdt-net
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -34,6 +36,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - sscdt-net
 
   api:
     build:
@@ -60,6 +64,8 @@ services:
       - "8000:8000"
     volumes:
       - ml_artifacts:/app/ml/artifacts
+    networks:
+      - sscdt-net
 
   dashboard:
     build:
@@ -77,6 +83,12 @@ services:
       DASHBOARD_REFRESH_SECONDS: 5
     ports:
       - "5000:5000"
+    networks:
+      - sscdt-net
+
+networks:
+  sscdt-net:
+    name: sscdt-network
 
 volumes:
   pgdata:
