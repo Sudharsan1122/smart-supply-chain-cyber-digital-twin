@@ -22,6 +22,7 @@ async def build_story(session: AsyncSession, story_db_id: int):
     target_code = story.title.split("->")[-1].strip() if "->" in story.title else story.title
     narrative = narrate(story.title, target_code, timeline)
 
+    from attack_story.ioc_extractor import extract_from_dict, persist_iocs
     for e in timeline:
         await repo.attack_story_events.add(
             story_db_id=story_db_id, evidence_kind=e.evidence_kind,
@@ -29,6 +30,13 @@ async def build_story(session: AsyncSession, story_db_id: int):
             evidence_id=e.evidence_id, asset_db_id=e.asset_db_id,
             severity=e.severity, details=e.details, tactic=e.tactic,
         )
+        if e.details:
+            event_iocs = extract_from_dict(e.details, "story_event", context={"asset_id": target_code, "story_id": story_db_id})
+            if event_iocs:
+                try:
+                    await persist_iocs(session, event_iocs, asset_db_id=e.asset_db_id, attack_story_db_id=story_db_id)
+                except Exception as ioc_err:
+                    logger.warning("Failed to persist story IOCs: %s", ioc_err)
 
     for t in narrative["tactics"]:
         await repo.attack_story_tactics.upsert(

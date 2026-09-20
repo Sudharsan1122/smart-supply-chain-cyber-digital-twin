@@ -1,39 +1,190 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="kpis">
-    <div class="kpi"><div class="kpi-label">Assets</div><div class="kpi-value">{{ summary.nodes or 0 }}</div></div>
-    <div class="kpi"><div class="kpi-label">Edges</div><div class="kpi-value">{{ summary.edges or 0 }}</div></div>
-    <div class="kpi"><div class="kpi-label">MQTT</div><div class="kpi-value {% if mqtt.connected %}good{% else %}bad{% endif %}">{{ 'connected' if mqtt.connected else 'offline' }}</div></div>
-    <div class="kpi"><div class="kpi-label">Database</div><div class="kpi-value {% if ready.checks and ready.checks.database == 'connected' %}good{% else %}bad{% endif %}">{{ (ready.checks.database if ready.checks else 'unknown') }}</div></div>
-    <div class="kpi"><div class="kpi-label">Twin</div><div class="kpi-value">{{ (ready.checks.twin if ready.checks else 'unknown') }}</div></div>
-</section>
+
+<!-- Row 1: 5 KPI Cards -->
+{% include "partials/kpi_cards.html" %}
+
+<!-- Feature 4: Global Filter Bar -->
+<div class="filter-bar">
+    <label for="filter-window">Window:</label>
+    <select id="filter-window">
+        <option value="15">15 min</option>
+        <option value="30" selected>30 min</option>
+        <option value="60">1 hour</option>
+    </select>
+
+    <label for="filter-severity">Severity:</label>
+    <select id="filter-severity">
+        <option value="">All Severities</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+    </select>
+
+    <label for="filter-type">Asset Type:</label>
+    <select id="filter-type">
+        <option value="">All Types</option>
+        <option value="TRUCK">Truck</option>
+        <option value="WAREHOUSE">Warehouse</option>
+        <option value="VEHICLE_GATEWAY">Vehicle Gateway</option>
+        <option value="API_GATEWAY">API Gateway</option>
+        <option value="APPLICATION">Application</option>
+        <option value="AUTH_SYSTEM">Auth System</option>
+        <option value="DATABASE">Database</option>
+        <option value="SENSOR">Sensor</option>
+    </select>
+</div>
+
+<!-- Row 2: 2 Real-Time Charts Side-by-Side -->
 <div class="grid-2">
-    <section class="card">
-        <h2>Top 10 by Risk</h2>
-        <table class="tbl"><thead><tr><th>#</th><th>Asset</th><th>Type</th><th>Score</th></tr></thead><tbody>
-        {% for a in risk.ranked %}
-        <tr><td>{{ loop.index }}</td><td class="mono">{{ a.asset_id }}</td><td><span class="pill">{{ a.asset_type }}</span></td>
-        <td><span class="badge {{ a.score | score_color }}">{{ a.score }}</span></td></tr>
-        {% else %}<tr><td colspan="4" class="muted">No risk scores yet.</td></tr>{% endfor %}
-        </tbody></table>
+    <section class="card chart-card">
+        <div class="card-header">
+            <h2>📈 Dynamic Risk Over Time (Top Assets)</h2>
+            <span class="muted small">30m live window</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="risk-chart"></canvas>
+        </div>
     </section>
-    <section class="card">
-        <h2>Asset States</h2>
-        <div class="chips">
-        {% for state, count in state_summary.by_state.items() %}<span class="chip">{{ state }}: <b>{{ count }}</b></span>
-        {% else %}<span class="muted">No state data.</span>{% endfor %}
+
+    <section class="card chart-card">
+        <div class="card-header">
+            <h2>📊 Detections &amp; IOCs Activity / Min</h2>
+            <span class="muted small">Per-minute anomaly rate</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="detections-chart"></canvas>
         </div>
     </section>
 </div>
+
+<!-- Row 3: 2 Panes Side-by-Side (Events Stream & Interactive Topology Graph) -->
+<div class="grid-2">
+    <section class="card live-pane">
+        <div class="card-header">
+            <h2>⚡ Live Security &amp; Anomaly Event Stream</h2>
+            <span class="badge info" id="event-count-badge">Streaming</span>
+        </div>
+        {% include "partials/events_list.html" %}
+    </section>
+
+    <section class="card live-pane">
+        <div class="card-header">
+            <h2>🌐 Interactive Cyber-Physical Twin Topology</h2>
+            <span class="muted small">D3 force layout &bull; Sized &amp; colored by risk</span>
+        </div>
+        <div class="topology-wrapper">
+            <div id="topology-tooltip" class="topology-tooltip"></div>
+            <svg id="topology-svg" class="topology-svg"></svg>
+            <div class="topology-legend">
+                <span><i class="legend-dot truck"></i> Truck</span>
+                <span><i class="legend-dot warehouse"></i> Warehouse</span>
+                <span><i class="legend-dot gateway"></i> Gateway</span>
+                <span><i class="legend-dot sensor"></i> Sensor</span>
+                <span><i class="legend-dot auth"></i> Auth/DB</span>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Row 4: Top 10 by Risk Table -->
 <section class="card">
-    <h2>All Assets</h2>
-    <div class="assets-grid">
-    {% for a in assets %}<div class="asset-card">
-        <div class="asset-id mono">{{ a.asset_id }}</div>
-        <div class="asset-name">{{ a.name }}</div>
-        <div class="asset-meta"><span class="pill">{{ a.asset_type }}</span>
-        {% if a.state %}<span class="badge state-{{ a.state }}">{{ a.state }}</span>{% endif %}</div>
-    </div>{% endfor %}
+    <div class="card-header">
+        <h2>⚠️ Top Ranked Assets by Risk Score</h2>
+        <span class="muted small">Updated in real-time</span>
+    </div>
+    <table class="tbl">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Asset ID</th>
+                <th>Type</th>
+                <th>Risk Score</th>
+                <th>Primary Risk Factors</th>
+                <th>Last Scored</th>
+            </tr>
+        </thead>
+        <tbody id="risk-table-body">
+            {% for a in risk.ranked %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td class="mono font-bold">{{ a.asset_id }}</td>
+                <td><span class="pill">{{ a.asset_type }}</span></td>
+                <td><span class="badge {{ a.score | score_color }}">{{ a.score }}</span></td>
+                <td class="small muted">
+                    {% for fk, fv in (a.factors or {}).items() %}
+                        {% if fv > 0.1 %}<span class="factor-chip">{{ fk }}: {{ '%.1f' % fv }}</span>{% endif %}
+                    {% endfor %}
+                </td>
+                <td class="muted small">{{ a.scored_at | fmt_ts }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="muted">No risk scores computed yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<!-- Row 5: All Assets Fleet Grid -->
+<section class="card">
+    <div class="card-header">
+        <h2>🚚 All Monitored Fleet &amp; Cyber Assets</h2>
+        <div class="chips" id="state-summary-chips">
+            {% for state, count in state_summary.by_state.items() %}
+            <span class="chip" data-state="{{ state }}">{{ state }}: <b>{{ count }}</b></span>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="assets-grid" id="assets-grid">
+        {% for a in assets %}
+        <div class="asset-card" id="asset-card-{{ a.asset_id }}">
+            <div class="asset-header">
+                <span class="asset-id mono">{{ a.asset_id }}</span>
+                <span class="badge state-{{ a.state or 'unknown' }} asset-state-badge">{{ a.state or 'unknown' }}</span>
+            </div>
+            <div class="asset-name">{{ a.name }}</div>
+            <div class="asset-meta">
+                <span class="pill">{{ a.asset_type }}</span>
+                <span class="pill asset-health health-{{ a.health or 'good' }}">{{ a.health or 'good' }}</span>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 </section>
+
+<!-- Feature 2: Node Detail Sidebar Panel -->
+<aside class="detail-panel" id="detail-panel">
+    <button class="panel-close" id="panel-close" title="Close details">&times;</button>
+    <div class="panel-header">
+        <div class="panel-asset-id mono">—</div>
+        <span class="pill panel-type">—</span>
+    </div>
+    <div class="panel-row">
+        <div class="panel-label">Asset Name</div>
+        <div class="panel-value panel-name">—</div>
+    </div>
+    <div class="panel-row">
+        <div class="panel-label">State &amp; Health</div>
+        <div class="panel-value">
+            <span class="badge panel-state">—</span>
+            <span class="pill panel-health">—</span>
+        </div>
+    </div>
+    <div class="panel-row">
+        <div class="panel-label">Dynamic Risk Score</div>
+        <div class="panel-value">
+            <span class="badge panel-risk">—</span>
+        </div>
+    </div>
+    <div class="panel-row">
+        <div class="panel-label">Latest Anomaly / Detection</div>
+        <div class="panel-value small mono panel-detection">—</div>
+    </div>
+    <div class="panel-row">
+        <div class="panel-label">Graph Hierarchy (Parents &bull; Children)</div>
+        <div class="panel-value small mono panel-neighbors">—</div>
+    </div>
+</aside>
+
 {% endblock %}

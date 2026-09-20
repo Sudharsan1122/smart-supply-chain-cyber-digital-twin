@@ -1,0 +1,16 @@
+<div class="events-stream-container">
+    <ul class="events-stream" id="events-list">
+        {% for e in events %}
+        <li class="event-row" data-id="{{ e.id }}">
+            <span class="badge sev-{{ e.severity }}">{{ e.severity }}</span>
+            <span class="mono event-type">{{ e.event_type }}</span>
+            <span class="event-desc">{{ e.description or e.source or 'Security event logged' }}</span>
+            <span class="muted small event-time">{{ e.timestamp | fmt_ts }}</span>
+        </li>
+        {% else %}
+        <li class="event-row empty-state">
+            <span class="muted">No security events streamed yet.</span>
+        </li>
+        {% endfor %}
+    </ul>
+</div>

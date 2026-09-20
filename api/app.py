@@ -28,6 +28,21 @@ async def _background_risk_sweep():
             logger.exception("Risk sweep error: %s", e)
 
 
+async def _background_triage_sweep():
+    from detection.triage import triage_pending
+    while True:
+        try:
+            await asyncio.sleep(settings.triage_sweep_interval_seconds)
+            async with AsyncSessionLocal() as session:
+                results = await triage_pending(session, limit=settings.triage_batch_size)
+                if results:
+                    logger.info("Triage sweep: %d classified", len(results))
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.exception("Triage sweep error: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f"Starting {settings.app_name} v{settings.app_version}")
@@ -52,12 +67,20 @@ async def lifespan(app: FastAPI):
     risk_task = asyncio.create_task(_background_risk_sweep())
     print(f"   [OK] Risk sweep every {settings.risk_sweep_interval_seconds}s")
 
+    triage_task = asyncio.create_task(_background_triage_sweep())
+    print(f"   [OK] Triage sweep every {settings.triage_sweep_interval_seconds}s")
+
     yield
 
     print("Shutting down...")
     risk_task.cancel()
+    triage_task.cancel()
     try:
         await risk_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await triage_task
     except asyncio.CancelledError:
         pass
     mqtt_bridge.stop()

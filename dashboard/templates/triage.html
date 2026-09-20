@@ -1,26 +1,83 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="kpis">
-    <div class="kpi"><div class="kpi-label">Total Triaged</div><div class="kpi-value">{{ metrics.total or 0 }}</div></div>
-    <div class="kpi"><div class="kpi-label">Precision</div><div class="kpi-value">{{ '%.2f' % (metrics.precision or 0) }}</div></div>
-    <div class="kpi"><div class="kpi-label">Recall</div><div class="kpi-value">{{ '%.2f' % (metrics.recall or 0) }}</div></div>
-    <div class="kpi"><div class="kpi-label">F1</div><div class="kpi-value">{{ '%.2f' % (metrics.f1 or 0) }}</div></div>
+    <div class="kpi">
+        <div class="kpi-label">Total Triaged</div>
+        <div class="kpi-value" id="kpi-total-triaged">{{ metrics.total or 0 }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Precision</div>
+        <div class="kpi-value good" id="kpi-precision">{{ '%.2f' % (metrics.precision or 0) }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Recall</div>
+        <div class="kpi-value good" id="kpi-recall">{{ '%.2f' % (metrics.recall or 0) }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">F1-Score</div>
+        <div class="kpi-value good" id="kpi-f1">{{ '%.2f' % (metrics.f1 or 0) }}</div>
+    </div>
 </section>
+
 <section class="card">
-    <h2>Confusion Matrix</h2>
+    <div class="card-header">
+        <h2>🎯 Classification Confusion Matrix</h2>
+    </div>
     <table class="confusion">
-        <tr><th></th><th>Pred +</th><th>Pred -</th></tr>
-        <tr><th>Act +</th><td class="cm tp">{{ metrics.tp }}</td><td class="cm fn">{{ metrics.fn }}</td></tr>
-        <tr><th>Act -</th><td class="cm fp">{{ metrics.fp }}</td><td class="cm tn">{{ metrics.tn }}</td></tr>
+        <thead>
+            <tr>
+                <th></th>
+                <th>Predicted Positive (Anomaly)</th>
+                <th>Predicted Negative (Normal)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <th>Actual Positive</th>
+                <td class="cm tp" id="cm-tp">{{ metrics.tp or 0 }}</td>
+                <td class="cm fn" id="cm-fn">{{ metrics.fn or 0 }}</td>
+            </tr>
+            <tr>
+                <th>Actual Negative</th>
+                <td class="cm fp" id="cm-fp">{{ metrics.fp or 0 }}</td>
+                <td class="cm tn" id="cm-tn">{{ metrics.tn or 0 }}</td>
+            </tr>
+        </tbody>
     </table>
 </section>
+
 <section class="card">
-    <h2>Recent Triage</h2>
-    <table class="tbl"><thead><tr><th>Detection</th><th>Rule</th><th>Severity</th><th>Verdict</th><th>Confidence</th></tr></thead><tbody>
-    {% for t in recent %}<tr><td class="mono small">{{ t.detection_id }}</td><td class="mono small">{{ t.rule_id or '---' }}</td>
-    <td><span class="badge sev-{{ t.severity }}">{{ t.severity }}</span></td>
-    <td><span class="badge">{{ t.verdict }}</span></td><td>{{ '%.2f' % t.confidence if t.confidence is not none else '---' }}</td></tr>
-    {% else %}<tr><td colspan="5" class="muted">No triage yet.</td></tr>{% endfor %}
-    </tbody></table>
+    <div class="card-header">
+        <h2>📋 Recent Triage Decisions</h2>
+        <span class="badge info" id="triage-count-badge">{{ recent | length }} Records</span>
+    </div>
+    <table class="tbl">
+        <thead>
+            <tr>
+                <th>Detection ID</th>
+                <th>Rule / Model</th>
+                <th>Severity</th>
+                <th>Verdict</th>
+                <th>Confidence</th>
+            </tr>
+        </thead>
+        <tbody id="triage-table-body">
+        {% for t in recent %}
+            <tr>
+                <td class="mono small">{{ t.detection_id }}</td>
+                <td class="mono small">{{ t.rule_id or 'ML-model' }}</td>
+                <td><span class="badge sev-{{ t.severity }}">{{ t.severity }}</span></td>
+                <td>
+                    <span class="badge {% if t.verdict == 'TP' %}safe{% elif t.verdict == 'FP' %}warn{% else %}info{% endif %}">
+                        {{ t.verdict }}
+                    </span>
+                </td>
+                <td>{{ '%.2f' % t.confidence if t.confidence is not none else '---' }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="5" class="muted">No triage decisions recorded yet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
 </section>
 {% endblock %}

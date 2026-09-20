@@ -104,9 +104,21 @@ async def persist_iocs(session, iocs, asset_db_id=None, attack_story_db_id=None)
     if not iocs:
         return []
     from database.repository import Repository
+    from database.repository_extra import IOCObservationRepo
     repo = Repository(session)
+    obs_repo = getattr(repo, "ioc_observations", None) or IOCObservationRepo(session)
     out = []
     for it in iocs:
         row = await repo.iocs.upsert(value=it.value, ioc_type=it.ioc_type, source=it.source)
+        try:
+            await obs_repo.upsert(
+                ioc_db_id=row.id,
+                evidence_kind=it.source,
+                asset_db_id=asset_db_id,
+                attack_story_db_id=attack_story_db_id,
+                context=it.context,
+            )
+        except Exception as e:
+            logger.warning("Failed to record IOC observation: %s", e)
         out.append({"ioc_id": row.id, "value": row.value, "ioc_type": row.ioc_type})
     return out

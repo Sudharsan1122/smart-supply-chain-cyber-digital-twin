@@ -1,6 +1,7 @@
 """Route aggregator."""
 from fastapi import APIRouter
 
+from api.routes.analytics import router as analytics_router
 from api.routes.assets import router as assets_router
 from api.routes.attack import router as attack_router
 from api.routes.attack_stories import router as attack_stories_router
@@ -19,6 +20,7 @@ from api.routes.twin import router as twin_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
+api_router.include_router(analytics_router)
 api_router.include_router(twin_router)
 api_router.include_router(telemetry_router)
 api_router.include_router(events_router)

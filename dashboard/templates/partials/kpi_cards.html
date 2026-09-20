@@ -1,0 +1,28 @@
+<section class="kpis">
+    <div class="kpi">
+        <div class="kpi-label">Twin Assets</div>
+        <div class="kpi-value" id="kpi-assets">{{ summary.nodes or 0 }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Graph Edges</div>
+        <div class="kpi-value" id="kpi-edges">{{ summary.edges or 0 }}</div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">MQTT Broker</div>
+        <div class="kpi-value {% if mqtt.connected %}good{% else %}bad{% endif %}" id="kpi-mqtt">
+            {{ 'connected' if mqtt.connected else 'offline' }}
+        </div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Database Pool</div>
+        <div class="kpi-value {% if ready.checks and ready.checks.database == 'connected' %}good{% else %}bad{% endif %}" id="kpi-db">
+            {{ (ready.checks.database if ready.checks else 'unknown') }}
+        </div>
+    </div>
+    <div class="kpi">
+        <div class="kpi-label">Twin Engine</div>
+        <div class="kpi-value good" id="kpi-twin">
+            {{ (ready.checks.twin if ready.checks else 'ready') }}
+        </div>
+    </div>
+</section>

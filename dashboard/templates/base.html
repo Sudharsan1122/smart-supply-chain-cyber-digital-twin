@@ -2,23 +2,45 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Supply Chain Cyber Digital Twin</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 </head>
 <body>
 <header class="topbar">
-    <div class="brand"><span class="logo">SS</span> <span class="title">Smart Supply Chain Cyber Digital Twin</span></div>
+    <div class="brand">
+        <span class="logo">⚡</span>
+        <span class="title">Smart Supply Chain Cyber Digital Twin</span>
+    </div>
     <nav class="tabs">
-        <a href="/" class="{% if active == 'live' %}active{% endif %}">Live Fleet</a>
-        <a href="/stories" class="{% if active == 'stories' %}active{% endif %}">Attack Stories</a>
-        <a href="/threat-intel" class="{% if active == 'threat-intel' %}active{% endif %}">Threat Intel</a>
-        <a href="/triage" class="{% if active == 'triage' %}active{% endif %}">Triage</a>
+        <a href="/" class="{% if active == 'live' %}active{% endif %}" data-tab="live">Live Fleet</a>
+        <a href="/stories" class="{% if active == 'stories' %}active{% endif %}" data-tab="stories">Attack Stories</a>
+        <a href="/threat-intel" class="{% if active == 'threat-intel' %}active{% endif %}" data-tab="threat-intel">Threat Intel</a>
+        <a href="/triage" class="{% if active == 'triage' %}active{% endif %}" data-tab="triage">Triage</a>
     </nav>
-    <div class="status"><span id="refresh-badge">auto-refresh {{ refresh }}s</span></div>
+    <div class="status">
+        <span class="live-badge" id="live-badge"><span class="dot"></span>LIVE (3s)</span>
+        <button id="download-report" class="btn-primary" title="Download current dashboard state as JSON">Download Report</button>
+    </div>
 </header>
-<main class="container">{% block content %}{% endblock %}</main>
-<footer class="footer"><span>API: <code>{{ api_url }}</code></span></footer>
-<script>window.DASHBOARD = { refreshSeconds: {{ refresh }} };</script>
+<main class="container">
+    {% block content %}{% endblock %}
+</main>
+<footer class="footer">
+    <span>Backend API: <code>{{ api_url }}</code> &bull; Real-time Digital Twin Engine</span>
+</footer>
+
+<script>
+    window.DASHBOARD = {
+        activeTab: "{{ active }}",
+        refreshSeconds: {{ refresh }},
+        apiUrl: "{{ api_url }}"
+    };
+</script>
+<script src="{{ url_for('static', filename='js/live_charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/live_topology.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

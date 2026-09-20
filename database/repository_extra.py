@@ -92,3 +92,56 @@ class AttackStoryTacticRepo:
         stmt = (select(m.AttackStoryTactic).where(m.AttackStoryTactic.story_id == story_db_id)
                 .order_by(m.AttackStoryTactic.evidence_count.desc()))
         return (await self.session.execute(stmt)).scalars().all()
+
+
+class IOCObservationRepo:
+    def __init__(self, session):
+        self.session = session
+
+    async def upsert(self, ioc_db_id, evidence_kind, asset_db_id=None,
+                     attack_story_db_id=None, evidence_id=None, context=None):
+        stmt = select(m.IOCObservation).where(
+            m.IOCObservation.ioc_id == ioc_db_id,
+            m.IOCObservation.evidence_kind == evidence_kind,
+        )
+        if asset_db_id is not None:
+            stmt = stmt.where(m.IOCObservation.asset_id == asset_db_id)
+        if attack_story_db_id is not None:
+            stmt = stmt.where(m.IOCObservation.attack_story_id == attack_story_db_id)
+
+        existing = (await self.session.execute(stmt)).scalars().first()
+        if existing:
+            existing.occurrences += 1
+            existing.last_seen = utcnow()
+            await self.session.flush()
+            return existing
+        obj = m.IOCObservation(
+            ioc_id=ioc_db_id,
+            asset_id=asset_db_id,
+            attack_story_id=attack_story_db_id,
+            evidence_kind=evidence_kind,
+            evidence_id=evidence_id,
+            context=context or {},
+            first_seen=utcnow(),
+            last_seen=utcnow(),
+            occurrences=1,
+        )
+        self.session.add(obj)
+        await self.session.flush()
+        return obj
+
+    async def list_for_ioc(self, ioc_db_id, limit=200):
+        stmt = (select(m.IOCObservation).where(m.IOCObservation.ioc_id == ioc_db_id)
+                .order_by(m.IOCObservation.last_seen.desc()).limit(limit))
+        return (await self.session.execute(stmt)).scalars().all()
+
+
+from database import repository
+if hasattr(repository, "Repository") and not hasattr(repository.Repository, "_ioc_obs_patched"):
+    _orig_init = repository.Repository.__init__
+    def _patched_init(self, session):
+        _orig_init(self, session)
+        self.ioc_observations = IOCObservationRepo(session)
+    repository.Repository.__init__ = _patched_init
+    repository.Repository._ioc_obs_patched = True
+

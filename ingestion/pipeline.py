@@ -85,6 +85,21 @@ async def ingest_telemetry(session: AsyncSession, payload: TelemetryPayload,
     detections = []
     if run_detections:
         detections = await run_detection(session, payload, validation_flags=vr.flags)
+        if detections:
+            from detection.triage import triage_detection
+            for d in detections:
+                try:
+                    await triage_detection(session, d["detection_id"])
+                except Exception as e:
+                    logger.warning("Auto-triage failed: %s", e)
+
+    from attack_story.ioc_extractor import extract_from_telemetry, persist_iocs
+    iocs = extract_from_telemetry(payload)
+    if iocs:
+        try:
+            await persist_iocs(session, iocs, asset_db_id=db_id)
+        except Exception as e:
+            logger.warning("Failed to persist telemetry IOCs: %s", e)
 
     risk = None
     if run_risk:
@@ -114,9 +129,24 @@ async def ingest_event(session: AsyncSession, payload: EventPayload,
         payload=payload.payload, timestamp=payload.timestamp or _now(),
     )
 
+    from attack_story.ioc_extractor import extract_from_event, persist_iocs
+    iocs = extract_from_event(payload)
+    if iocs:
+        try:
+            await persist_iocs(session, iocs, asset_db_id=db_id)
+        except Exception as e:
+            logger.warning("Failed to persist event IOCs: %s", e)
+
     detections = []
     if run_detections:
         detections = await run_detection(session, payload)
+        if detections:
+            from detection.triage import triage_detection
+            for d in detections:
+                try:
+                    await triage_detection(session, d["detection_id"])
+                except Exception as e:
+                    logger.warning("Auto-triage failed: %s", e)
 
     await session.commit()
     return {"event_id": ev.id, "incidents_created": [], "detections": detections}

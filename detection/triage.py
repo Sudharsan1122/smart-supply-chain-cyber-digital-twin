@@ -51,10 +51,12 @@ async def score_detection(session, det):
     conf, r2 = await _sig_confidence(session, det)
     story, r3 = await _sig_story_bonus(session, det)
 
-    weighted = (settings.triage_weight_severity * sev
-                + settings.triage_weight_confidence * conf)
+    w_sev = getattr(settings, "triage_weight_severity", 0.5)
+    w_conf = getattr(settings, "triage_weight_confidence", 0.3)
+    w_bonus = getattr(settings, "triage_story_bonus", 0.2)
+    weighted = (w_sev * sev + w_conf * conf)
     if story > 0:
-        weighted += settings.triage_story_bonus
+        weighted += w_bonus
 
     score = round(min(1.0, weighted), 4)
     verdict = "TP" if score >= settings.triage_tp_threshold else "FP"
