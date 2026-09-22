@@ -1,11 +1,12 @@
 (function () {
     "use strict";
 
-    const INDIA_CENTER = [20.5937, 78.9629];
-    const ZOOM = 5;
+    const INDIA_CENTER = [20.59, 78.96];
+    const ZOOM = 6;
     const REFRESH_MS = 5000;
 
     let map = null;
+    let clusterGroup = null;
     const markers = {};
 
     function initMap() {
@@ -19,10 +20,22 @@
             preferCanvas: true,
         });
 
+        map.setView(INDIA_CENTER, ZOOM);
+
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             maxZoom: 19,
         }).addTo(map);
+
+        if (typeof L.markerClusterGroup === "function") {
+            clusterGroup = L.markerClusterGroup({
+                maxClusterRadius: 45,
+                spiderfyOnMaxZoom: true,
+                showCoverageOnHover: false,
+                zoomToBoundsOnClick: true,
+            });
+            map.addLayer(clusterGroup);
+        }
     }
 
     function emojiFor(asset_type) {
@@ -90,20 +103,33 @@
             const latlng = [asset.lat, asset.lon];
 
             if (markers[asset.asset_id]) {
-                markers[asset.asset_id].setLatLng(latlng);
-                markers[asset.asset_id].setIcon(makeIcon(asset));
-                markers[asset.asset_id].setPopupContent(popupHtml(asset));
+                const m = markers[asset.asset_id];
+                const oldLatLng = m.getLatLng();
+                if (Math.abs(oldLatLng.lat - asset.lat) > 0.0001 || Math.abs(oldLatLng.lng - asset.lon) > 0.0001) {
+                    m.setLatLng(latlng);
+                }
+                m.setIcon(makeIcon(asset));
+                m.setPopupContent(popupHtml(asset));
             } else {
-                markers[asset.asset_id] = L.marker(latlng, { icon: makeIcon(asset) })
-                    .addTo(map)
+                const m = L.marker(latlng, { icon: makeIcon(asset) })
                     .bindPopup(popupHtml(asset));
+                markers[asset.asset_id] = m;
+                if (clusterGroup) {
+                    clusterGroup.addLayer(m);
+                } else {
+                    m.addTo(map);
+                }
             }
         });
 
         // Remove markers for assets no longer present
         Object.keys(markers).forEach(aid => {
             if (!seen.has(aid)) {
-                map.removeLayer(markers[aid]);
+                if (clusterGroup) {
+                    clusterGroup.removeLayer(markers[aid]);
+                } else {
+                    map.removeLayer(markers[aid]);
+                }
                 delete markers[aid];
             }
         });

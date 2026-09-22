@@ -81,3 +81,20 @@
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
 }
 .leaflet-popup-tip { background: #161b22; }
+
+/* Marker Cluster styling */
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+    background-color: rgba(122, 26, 26, 0.45);
+}
+.marker-cluster-small div,
+.marker-cluster-medium div,
+.marker-cluster-large div {
+    background-color: #7a1a1a;
+    color: #ffffff;
+    font-weight: 700;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
