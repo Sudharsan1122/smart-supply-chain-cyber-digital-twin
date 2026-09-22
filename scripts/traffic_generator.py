@@ -23,53 +23,31 @@ from datetime import datetime, timezone
 
 import httpx
 
+from scripts.routing import get_road_path
+
 
 # ---------------------------------------------------------------------------
 # Predefined realistic truck routes (waypoints per truck across India)
 # ---------------------------------------------------------------------------
 ROUTES = {
-    "TRUCK-001": [
-        (13.0827, 80.2707),   # Chennai
-        (12.9250, 79.1300),   # Vellore
-        (12.9716, 77.5946),   # Bengaluru
-    ],
-    "TRUCK-002": [
-        (13.0827, 80.2707),   # Chennai
-        (11.4100, 76.9700),   # Coimbatore
-    ],
-    "TRUCK-003": [
-        (19.0760, 72.8777),   # Mumbai
-        (18.5200, 73.8600),   # Pune
-    ],
-    "TRUCK-004": [
-        (28.7041, 77.1025),   # Delhi
-        (26.9124, 75.7873),   # Jaipur
-    ],
-    "TRUCK-005": [
-        (19.0760, 72.8777),   # Mumbai
-        (21.1700, 72.8300),   # Surat
-    ],
-    "TRUCK-006": [
-        (28.7041, 77.1025),   # Delhi
-        (27.1800, 78.0100),   # Agra
-    ],
-    "TRUCK-007": [
-        (12.9716, 77.5946),   # Bengaluru
-        (17.3850, 78.4867),   # Hyderabad
-    ],
-    "TRUCK-008": [
-        (13.0827, 80.2707),   # Chennai
-        (11.9400, 79.8300),   # Puducherry
-    ],
+    "TRUCK-001": [(13.0827, 80.2707), (12.9716, 77.5946)],   # Chennai -> Bengaluru
+    "TRUCK-002": [(13.0827, 80.2707), (11.4100, 76.9700)],   # Chennai -> Coimbatore
+    "TRUCK-003": [(19.0760, 72.8777), (18.5200, 73.8600)],   # Mumbai -> Pune
+    "TRUCK-004": [(28.7041, 77.1025), (26.9124, 75.7873)],   # Delhi -> Jaipur
+    "TRUCK-005": [(19.0760, 72.8777), (21.1700, 72.8300)],   # Mumbai -> Surat
+    "TRUCK-006": [(28.7041, 77.1025), (27.1800, 78.0100)],   # Delhi -> Agra
+    "TRUCK-007": [(12.9716, 77.5946), (17.3850, 78.4867)],   # Bengaluru -> Hyderabad
+    "TRUCK-008": [(13.0827, 80.2707), (11.9400, 79.8300)],   # Chennai -> Puducherry
 }
 
 
 class TruckTracker:
-    def __init__(self, route: list[tuple[float, float]], speed: float = 0.02):
-        self.route = route
-        self.progress = 0.0     # 0.0 to 1.0
-        self.direction = 1       # +1 forward, -1 backward
-        self.speed = speed       # progress delta per tick
+    def __init__(self, waypoints: list[tuple[float, float]], speed: float = 0.003):
+        # Fetch real road path once at init
+        self.route = get_road_path(tuple(waypoints))
+        self.progress = 0.0
+        self.direction = 1
+        self.speed = speed
 
     def next_position(self) -> tuple[float, float]:
         self.progress += self.speed * self.direction
@@ -80,22 +58,23 @@ class TruckTracker:
             self.progress = 0.0
             self.direction = 1
 
-        # Find current segment
         n = len(self.route) - 1
+        if n < 1:
+            return self.route[0]
         seg_pos = self.progress * n
-        i = int(seg_pos)
-        i = min(i, n - 1)
+        i = min(int(seg_pos), n - 1)
         t = seg_pos - i
 
         lat1, lon1 = self.route[i]
         lat2, lon2 = self.route[i + 1]
         lat = lat1 + (lat2 - lat1) * t
         lon = lon1 + (lon2 - lon1) * t
-        return round(lat, 4), round(lon, 4)
+        return round(lat, 6), round(lon, 6)
 
 
 # Initialize global fallback trackers
-_trackers = {tid: TruckTracker(r, speed=0.02) for tid, r in ROUTES.items()}
+_trackers = {tid: TruckTracker(r, speed=0.003) for tid, r in ROUTES.items()}
+
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +226,7 @@ def inject_anomaly(asset_id: str, asset_type: str) -> dict:
 # ---------------------------------------------------------------------------
 class TrafficGenerator:
     def __init__(self, api: str, interval: float, mode: str,
-                 anomaly_rate: float, verbose: bool, truck_speed: float = 0.02):
+                 anomaly_rate: float, verbose: bool, truck_speed: float = 0.003):
         self.api = api.rstrip("/")
         self.interval = interval
         self.mode = mode
@@ -255,6 +234,7 @@ class TrafficGenerator:
         self.verbose = verbose
         self.truck_speed = truck_speed
         self.trackers = {tid: TruckTracker(r, speed=truck_speed) for tid, r in ROUTES.items()}
+
         self.stats = {
             "sent": 0,
             "ok": 0,
@@ -344,9 +324,10 @@ def main() -> int:
                    help="normal = baseline only, attack = inject anomalies")
     p.add_argument("--anomaly-rate", type=float, default=0.05,
                    help="Fraction of payloads that are anomalies (0.0-1.0)")
-    p.add_argument("--truck-speed", type=float, default=0.02,
-                   help="Progress delta per tick for trucks along route (default: 0.02 = 50s/route)")
+    p.add_argument("--truck-speed", type=float, default=0.003,
+                   help="Progress delta per tick for trucks along route (default: 0.003 = 10 min/route)")
     p.add_argument("--verbose", "-v", action="store_true")
+
     args = p.parse_args()
 
     gen = TrafficGenerator(

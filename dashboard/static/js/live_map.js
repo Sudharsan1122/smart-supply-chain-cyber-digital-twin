@@ -90,26 +90,22 @@
 
     function updateTrail(asset) {
         if (!map) return;
-        const latlng = [asset.lat, asset.lon];
         if (!trails[asset.asset_id]) {
-            trails[asset.asset_id] = L.polyline([latlng], {
-                color: "#58a6ff",
-                weight: 2.5,
-                opacity: 0.8,
+            trails[asset.asset_id] = L.polyline([], {
+                color: "#1f6feb",
+                weight: 2,
+                opacity: 0.6,
             }).addTo(map);
-            return;
         }
-        const poly = trails[asset.asset_id];
-        const latlngs = poly.getLatLngs();
+        const latlngs = trails[asset.asset_id].getLatLngs();
         const last = latlngs[latlngs.length - 1];
-        if (!last || Math.abs(last.lat - asset.lat) > 0.0001 || Math.abs(last.lng - asset.lon) > 0.0001) {
-            poly.addLatLng(latlng);
-            if (latlngs.length > 60) {
-                latlngs.shift();
-                poly.setLatLngs(latlngs);
-            }
+        const next = [asset.lat, asset.lon];
+        // Only add if moved enough
+        if (!last || last.lat !== next[0] || last.lng !== next[1]) {
+            trails[asset.asset_id].addLatLng(next);
         }
     }
+
 
     async function refreshMap() {
         if (!map) return;
