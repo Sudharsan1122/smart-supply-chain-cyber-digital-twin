@@ -25,19 +25,100 @@ import httpx
 
 
 # ---------------------------------------------------------------------------
+# Predefined realistic truck routes (waypoints per truck across India)
+# ---------------------------------------------------------------------------
+ROUTES = {
+    "TRUCK-001": [
+        (13.0827, 80.2707),   # Chennai
+        (12.9250, 79.1300),   # Vellore
+        (12.9716, 77.5946),   # Bengaluru
+    ],
+    "TRUCK-002": [
+        (13.0827, 80.2707),   # Chennai
+        (11.4100, 76.9700),   # Coimbatore
+    ],
+    "TRUCK-003": [
+        (19.0760, 72.8777),   # Mumbai
+        (18.5200, 73.8600),   # Pune
+    ],
+    "TRUCK-004": [
+        (28.7041, 77.1025),   # Delhi
+        (26.9124, 75.7873),   # Jaipur
+    ],
+    "TRUCK-005": [
+        (19.0760, 72.8777),   # Mumbai
+        (21.1700, 72.8300),   # Surat
+    ],
+    "TRUCK-006": [
+        (28.7041, 77.1025),   # Delhi
+        (27.1800, 78.0100),   # Agra
+    ],
+    "TRUCK-007": [
+        (12.9716, 77.5946),   # Bengaluru
+        (17.3850, 78.4867),   # Hyderabad
+    ],
+    "TRUCK-008": [
+        (13.0827, 80.2707),   # Chennai
+        (11.9400, 79.8300),   # Puducherry
+    ],
+}
+
+
+class TruckTracker:
+    def __init__(self, route: list[tuple[float, float]], speed: float = 0.02):
+        self.route = route
+        self.progress = 0.0     # 0.0 to 1.0
+        self.direction = 1       # +1 forward, -1 backward
+        self.speed = speed       # progress delta per tick
+
+    def next_position(self) -> tuple[float, float]:
+        self.progress += self.speed * self.direction
+        if self.progress >= 1.0:
+            self.progress = 1.0
+            self.direction = -1
+        elif self.progress <= 0.0:
+            self.progress = 0.0
+            self.direction = 1
+
+        # Find current segment
+        n = len(self.route) - 1
+        seg_pos = self.progress * n
+        i = int(seg_pos)
+        i = min(i, n - 1)
+        t = seg_pos - i
+
+        lat1, lon1 = self.route[i]
+        lat2, lon2 = self.route[i + 1]
+        lat = lat1 + (lat2 - lat1) * t
+        lon = lon1 + (lon2 - lon1) * t
+        return round(lat, 4), round(lon, 4)
+
+
+# Initialize global fallback trackers
+_trackers = {tid: TruckTracker(r, speed=0.02) for tid, r in ROUTES.items()}
+
+
+# ---------------------------------------------------------------------------
 # Assets to simulate (asset_id, asset_type)
 # ---------------------------------------------------------------------------
 ASSETS = [
     ("TRUCK-001", "TRUCK"),
+    ("TRUCK-002", "TRUCK"),
     ("TRUCK-003", "TRUCK"),
+    ("TRUCK-004", "TRUCK"),
     ("TRUCK-005", "TRUCK"),
+    ("TRUCK-006", "TRUCK"),
+    ("TRUCK-007", "TRUCK"),
+    ("TRUCK-008", "TRUCK"),
     ("WH-001", "WAREHOUSE"),
     ("WH-002", "WAREHOUSE"),
     ("TEMP-001", "SENSOR"),
     ("HUM-001", "SENSOR"),
     ("DOOR-001", "SENSOR"),
     ("VGW-101", "VEHICLE_GATEWAY"),
+    ("VGW-102", "VEHICLE_GATEWAY"),
     ("VGW-103", "VEHICLE_GATEWAY"),
+    ("VGW-104", "VEHICLE_GATEWAY"),
     ("API-GW-001", "API_GATEWAY"),
     ("APP-001", "APPLICATION"),
     ("AUTH-001", "AUTH_SYSTEM"),
@@ -48,18 +129,24 @@ ASSETS = [
 # ---------------------------------------------------------------------------
 # Baseline generators (normal traffic)
 # ---------------------------------------------------------------------------
-def _truck_payload() -> dict:
+def _truck_payload(asset_id: str = "TRUCK-001") -> dict:
+    tracker = _trackers.get(asset_id)
+    if tracker:
+        lat, lon = tracker.next_position()
+    else:
+        lat, lon = (13.0827, 80.2707)
     return {
         "speed": round(random.gauss(55, 12), 1),
         "temperature": round(random.gauss(-2, 2), 1),
         "fuel": round(max(0, min(100, random.gauss(70, 12))), 1),
         "battery": round(max(0, min(100, random.gauss(85, 5))), 1),
-        "status": random.choice(["ACTIVE", "ACTIVE", "IDLE", "MOVING"]),
+        "status": random.choice(["ACTIVE", "ACTIVE", "MOVING"]),
         "gps": {
-            "latitude": round(random.gauss(13.08, 0.3), 4),
-            "longitude": round(random.gauss(80.27, 0.3), 4),
+            "latitude": lat,
+            "longitude": lon,
         },
     }
+
 
 
 def _warehouse_payload() -> dict:
@@ -160,12 +247,14 @@ def inject_anomaly(asset_id: str, asset_type: str) -> dict:
 # ---------------------------------------------------------------------------
 class TrafficGenerator:
     def __init__(self, api: str, interval: float, mode: str,
-                 anomaly_rate: float, verbose: bool):
+                 anomaly_rate: float, verbose: bool, truck_speed: float = 0.02):
         self.api = api.rstrip("/")
         self.interval = interval
         self.mode = mode
         self.anomaly_rate = anomaly_rate
         self.verbose = verbose
+        self.truck_speed = truck_speed
+        self.trackers = {tid: TruckTracker(r, speed=truck_speed) for tid, r in ROUTES.items()}
         self.stats = {
             "sent": 0,
             "ok": 0,
@@ -183,12 +272,23 @@ class TrafficGenerator:
             body = inject_anomaly(asset_id, asset_type)
         else:
             body = GENERATORS.get(asset_type, lambda: {})()
+
+        if asset_type == "TRUCK":
+            # If an anomaly injected geofence (London lat=51.5), preserve that attack.
+            # Otherwise advance the truck tracker along its realistic route.
+            if not (is_anomaly and body.get("gps", {}).get("latitude") == 51.5):
+                tracker = self.trackers.get(asset_id, _trackers.get(asset_id))
+                if tracker:
+                    lat, lon = tracker.next_position()
+                    body["gps"] = {"latitude": lat, "longitude": lon}
+
         return {
             "asset_id": asset_id,
             "asset_type": asset_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             **body,
         }
+
 
     async def run(self) -> None:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -244,6 +344,8 @@ def main() -> int:
                    help="normal = baseline only, attack = inject anomalies")
     p.add_argument("--anomaly-rate", type=float, default=0.05,
                    help="Fraction of payloads that are anomalies (0.0-1.0)")
+    p.add_argument("--truck-speed", type=float, default=0.02,
+                   help="Progress delta per tick for trucks along route (default: 0.02 = 50s/route)")
     p.add_argument("--verbose", "-v", action="store_true")
     args = p.parse_args()
 
@@ -253,7 +355,9 @@ def main() -> int:
         mode=args.mode,
         anomaly_rate=args.anomaly_rate,
         verbose=args.verbose,
+        truck_speed=args.truck_speed,
     )
+
 
     try:
         asyncio.run(gen.run())

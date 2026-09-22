@@ -86,6 +86,31 @@
         `;
     }
 
+    const trails = {};
+
+    function updateTrail(asset) {
+        if (!map) return;
+        const latlng = [asset.lat, asset.lon];
+        if (!trails[asset.asset_id]) {
+            trails[asset.asset_id] = L.polyline([latlng], {
+                color: "#58a6ff",
+                weight: 2.5,
+                opacity: 0.8,
+            }).addTo(map);
+            return;
+        }
+        const poly = trails[asset.asset_id];
+        const latlngs = poly.getLatLngs();
+        const last = latlngs[latlngs.length - 1];
+        if (!last || Math.abs(last.lat - asset.lat) > 0.0001 || Math.abs(last.lng - asset.lon) > 0.0001) {
+            poly.addLatLng(latlng);
+            if (latlngs.length > 60) {
+                latlngs.shift();
+                poly.setLatLngs(latlngs);
+            }
+        }
+    }
+
     async function refreshMap() {
         if (!map) return;
         let data;
@@ -102,11 +127,22 @@
             seen.add(asset.asset_id);
             const latlng = [asset.lat, asset.lon];
 
+            if (asset.asset_type === "TRUCK") {
+                updateTrail(asset);
+            }
+
             if (markers[asset.asset_id]) {
                 const m = markers[asset.asset_id];
                 const oldLatLng = m.getLatLng();
                 if (Math.abs(oldLatLng.lat - asset.lat) > 0.0001 || Math.abs(oldLatLng.lng - asset.lon) > 0.0001) {
                     m.setLatLng(latlng);
+                    if (clusterGroup && typeof clusterGroup.refreshClusters === "function") {
+                        try {
+                            clusterGroup.refreshClusters(m);
+                        } catch (e) {
+                            // cluster refresh safeguard
+                        }
+                    }
                 }
                 m.setIcon(makeIcon(asset));
                 m.setPopupContent(popupHtml(asset));
@@ -121,6 +157,7 @@
                 }
             }
         });
+
 
         // Remove markers for assets no longer present
         Object.keys(markers).forEach(aid => {
