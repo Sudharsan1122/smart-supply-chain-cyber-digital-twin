@@ -14,6 +14,8 @@ REFRESH = int(os.getenv("DASHBOARD_REFRESH_SECONDS", "3"))
 PORT = int(os.getenv("DASHBOARD_PORT", "5000"))
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+
 
 
 def api_get(path: str, params: dict | None = None, timeout: float = 5.0) -> Any:
