@@ -59,25 +59,6 @@
     </section>
 </div>
 
-<!-- Live Geographic Twin Map -->
-<section class="card" id="map-card">
-    <div class="card-header">
-        <h2>🗺️ Live Geographic Twin</h2>
-        <span class="badge live-badge"><span class="dot"></span>Live GPS (5s)</span>
-    </div>
-    <p class="muted small" style="margin-bottom: 12px;">Real-time positions of trucks, warehouses, gateways, and sensors across India. Markers colored by risk score. Updates every 5 seconds.</p>
-    <div id="map" style="height: 520px; border-radius: 8px;"></div>
-    <div class="map-legend">
-        <span><span class="dot safe"></span> Safe</span>
-        <span><span class="dot info"></span> Low</span>
-        <span><span class="dot warn"></span> Medium</span>
-        <span><span class="dot danger"></span> High</span>
-        <span style="margin-left:auto">🚛 Truck · 🏭 Warehouse · 📡 Gateway · 🌡️ Sensor · ☁️ API · 📱 App · 🔐 Auth · 💾 DB · 📦 Supplier</span>
-    </div>
-</section>
-
-<script src="{{ url_for('static', filename='js/live_map.js') }}"></script>
-
 <!-- Row 3: 2 Panes Side-by-Side (Events Stream & Interactive Topology Graph) -->
 <div class="grid-2">
     <section class="card live-pane">
@@ -106,6 +87,26 @@
         </div>
     </section>
 </div>
+
+<!-- Live Geographic Twin Map -->
+<section class="card" id="map-card">
+    <div class="card-header">
+        <h2>🗺️ Live Geographic Twin</h2>
+        <span class="badge live-badge"><span class="dot"></span>Live GPS (5s)</span>
+    </div>
+    <p class="muted small" style="margin-bottom: 12px;">Real-time positions of trucks, warehouses, gateways, and sensors across India. Markers colored by risk score. Updates every 5 seconds.</p>
+    <div id="map" style="height: 520px; border-radius: 8px;"></div>
+    <div class="map-legend">
+        <span><span class="dot safe"></span> Safe</span>
+        <span><span class="dot info"></span> Low</span>
+        <span><span class="dot warn"></span> Medium</span>
+        <span><span class="dot danger"></span> High</span>
+        <span style="margin-left:auto">🚛 Truck · 🏭 Warehouse · 📡 Gateway · 🌡️ Sensor · ☁️ API · 📱 App · 🔐 Auth · 💾 DB · 📦 Supplier</span>
+    </div>
+</section>
+
+<script src="{{ url_for('static', filename='js/live_map.js') }}"></script>
+
 
 <!-- Row 4: Top 10 by Risk Table -->
 <section class="card">
