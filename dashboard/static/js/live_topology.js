@@ -8,11 +8,44 @@ window.liveTopology = (function () {
     let simulation = null;
     let svg = null;
     let g = null;
+    let zoom = null;
+    let width = 600;
+    let height = 360;
     let nodeGroup = null;
     let linkGroup = null;
     let nodesData = [];
     let linksData = [];
     let isInitialized = false;
+    let hasAutoFitted = false;
+
+    function fitToViewport(duration = 750) {
+        if (!g || !svg || !zoom) return;
+        const gEl = g.node();
+        if (!gEl) return;
+        const bounds = gEl.getBBox();
+        if (!bounds || bounds.width === 0 || bounds.height === 0) return;
+
+        const fullWidth = width || 600;
+        const fullHeight = height || 360;
+        const midX = bounds.x + bounds.width / 2;
+        const midY = bounds.y + bounds.height / 2;
+        const scale = 0.85 / Math.max(bounds.width / fullWidth, bounds.height / fullHeight);
+        const clampedScale = Math.max(0.3, Math.min(4.0, scale));
+        const translate = [fullWidth / 2 - clampedScale * midX, fullHeight / 2 - clampedScale * midY];
+
+        if (duration > 0) {
+            svg.transition().duration(duration).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(translate[0], translate[1]).scale(clampedScale)
+            );
+        } else {
+            svg.call(
+                zoom.transform,
+                d3.zoomIdentity.translate(translate[0], translate[1]).scale(clampedScale)
+            );
+        }
+    }
+
 
     const TYPE_COLORS = {
         "TRUCK": "#3fb950",
@@ -116,8 +149,8 @@ window.liveTopology = (function () {
         const svgEl = document.getElementById("topology-svg");
         if (!svgEl || !window.d3) return;
 
-        const width = svgEl.clientWidth || 600;
-        const height = svgEl.clientHeight || 360;
+        width = svgEl.clientWidth || 600;
+        height = svgEl.clientHeight || 360;
 
         svg = d3.select("#topology-svg")
             .attr("viewBox", [0, 0, width, height]);
@@ -125,22 +158,43 @@ window.liveTopology = (function () {
         svg.selectAll("*").remove();
 
         g = svg.append("g");
-        svg.call(d3.zoom()
-            .scaleExtent([0.3, 3])
-            .on("zoom", (event) => g.attr("transform", event.transform)));
+        zoom = d3.zoom()
+            .scaleExtent([0.3, 4])
+            .on("zoom", (event) => g.attr("transform", event.transform));
+        svg.call(zoom);
 
         linkGroup = g.append("g").attr("class", "links");
         nodeGroup = g.append("g").attr("class", "nodes");
 
         simulation = d3.forceSimulation()
-            .force("link", d3.forceLink().id(d => d.asset_id).distance(55))
-            .force("charge", d3.forceManyBody().strength(-110))
-            .force("center", d3.forceCenter(width / 2, height / 2))
-            .force("collision", d3.forceCollide().radius(d => getNodeRadius(d) + 5));
+            .force("link", d3.forceLink().id(d => d.asset_id || d.id).distance(60))
+            .force("charge", d3.forceManyBody().strength(-150))
+            .force("center", d3.forceCenter(width / 2, height / 2).strength(0.5))
+            .force("collision", d3.forceCollide().radius(20));
+
+        simulation.on("end", () => {
+            if (!hasAutoFitted) {
+                fitToViewport(750);
+                hasAutoFitted = true;
+            }
+        });
+
+        document.getElementById("reset-topology-view")?.addEventListener("click", () => {
+            fitToViewport(500);
+        });
+
+        window.addEventListener("resize", () => {
+            if (!svgEl) return;
+            width = svgEl.clientWidth || 600;
+            height = svgEl.clientHeight || 360;
+            svg.attr("viewBox", [0, 0, width, height]);
+            simulation.force("center", d3.forceCenter(width / 2, height / 2).strength(0.5));
+        });
 
         isInitialized = true;
         render();
     }
+
 
     async function render() {
         if (!isInitialized) return;
@@ -245,6 +299,16 @@ window.liveTopology = (function () {
             simulation.nodes(nodesData);
             simulation.force("link").links(linksData);
             simulation.alpha(0.3).restart();
+
+            if (!hasAutoFitted) {
+                setTimeout(() => {
+                    if (!hasAutoFitted) {
+                        fitToViewport(750);
+                        hasAutoFitted = true;
+                    }
+                }, 800);
+            }
+
 
             simulation.on("tick", () => {
                 allLinks

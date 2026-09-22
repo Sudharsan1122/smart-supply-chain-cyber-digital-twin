@@ -72,8 +72,12 @@
     <section class="card live-pane">
         <div class="card-header">
             <h2>🌐 Interactive Cyber-Physical Twin Topology</h2>
-            <span class="muted small">D3 force layout &bull; Sized &amp; colored by risk</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <button id="reset-topology-view" class="btn">Reset View</button>
+                <span class="muted small">D3 force layout &bull; Sized &amp; colored by risk</span>
+            </div>
         </div>
+
         <div class="topology-wrapper">
             <div id="topology-tooltip" class="topology-tooltip"></div>
             <svg id="topology-svg" class="topology-svg"></svg>

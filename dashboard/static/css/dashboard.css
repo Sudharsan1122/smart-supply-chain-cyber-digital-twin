@@ -82,6 +82,28 @@ code, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 
 .legend-dot.sensor { background: #39c5cf; }
 .legend-dot.auth { background: #f85149; }
 
+/* Buttons */
+.btn {
+    background: #21262d;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn:hover {
+    background: #30363d;
+    border-color: #58a6ff;
+    color: #f0f6fc;
+}
+.btn:active {
+    background: #282e33;
+}
+
+
 /* Tables */
 .tbl { width: 100%; border-collapse: collapse; }
 .tbl th, .tbl td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #21262d; }
