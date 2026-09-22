@@ -86,10 +86,15 @@
         `;
     }
 
+    function isInIndia(lat, lon) {
+        return lat >= 6.0 && lat <= 37.0 && lon >= 68.0 && lon <= 98.0;
+    }
+
     const trails = {};
+    let lastSessionId = null;
 
     function updateTrail(asset) {
-        if (!map) return;
+        if (!map || !isInIndia(asset.lat, asset.lon)) return;
         if (!trails[asset.asset_id]) {
             trails[asset.asset_id] = L.polyline([], {
                 color: "#1f6feb",
@@ -97,15 +102,30 @@
                 opacity: 0.6,
             }).addTo(map);
         }
+
         const latlngs = trails[asset.asset_id].getLatLngs();
         const last = latlngs[latlngs.length - 1];
         const next = [asset.lat, asset.lon];
-        // Only add if moved enough
-        if (!last || last.lat !== next[0] || last.lng !== next[1]) {
-            trails[asset.asset_id].addLatLng(next);
+
+        // If last point is more than 1 degree away, RESET the trail
+        if (last && (Math.abs(last.lat - next[0]) > 1.0 ||
+                     Math.abs(last.lng - next[1]) > 1.0)) {
+            trails[asset.asset_id].setLatLngs([next]);
+            return;
+        }
+
+        // Skip if no meaningful change
+        if (last && last.lat === next[0] && last.lng === next[1]) return;
+
+        trails[asset.asset_id].addLatLng(next);
+
+        // Cap trail length to last 200 points
+        const pts = trails[asset.asset_id].getLatLngs();
+        if (pts.length > 200) {
+            pts.splice(0, pts.length - 200);
+            trails[asset.asset_id].setLatLngs(pts);
         }
     }
-
 
     async function refreshMap() {
         if (!map) return;
@@ -117,9 +137,21 @@
             return;
         }
 
+        // Detect backend restart
+        if (data.session_id && data.session_id !== lastSessionId) {
+            if (lastSessionId !== null) {
+                console.log("Backend restarted — clearing all trails");
+                Object.values(trails).forEach(t => t.setLatLngs([]));
+            }
+            lastSessionId = data.session_id;
+        }
+
+        // Filter out invalid coordinates
+        const validAssets = (data.assets || []).filter(a => isInIndia(a.lat, a.lon));
+
         const seen = new Set();
 
-        (data.assets || []).forEach(asset => {
+        validAssets.forEach(asset => {
             seen.add(asset.asset_id);
             const latlng = [asset.lat, asset.lon];
 
@@ -154,8 +186,7 @@
             }
         });
 
-
-        // Remove markers for assets no longer present
+        // Remove markers for assets no longer present or outside India
         Object.keys(markers).forEach(aid => {
             if (!seen.has(aid)) {
                 if (clusterGroup) {

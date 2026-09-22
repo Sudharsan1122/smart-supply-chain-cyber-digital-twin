@@ -1,10 +1,12 @@
 """Phase 19 - Flask dashboard with real-time live monitoring."""
 from __future__ import annotations
 
-import logging, os
+import logging, os, uuid
 from typing import Any
 import requests
 from flask import Flask, jsonify, render_template, request
+
+_SESSION_ID = str(uuid.uuid4())[:8]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -344,7 +346,11 @@ def live_map_data():
             "lon": float(lon),
         })
 
-    return jsonify({"assets": out, "total": len(out)})
+    return jsonify({
+        "assets": out,
+        "total": len(out),
+        "session_id": _SESSION_ID,
+    })
 
 
 # ---------------------------------------------------------------------------
