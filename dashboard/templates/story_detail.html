@@ -1,107 +1,120 @@
 {% extends "base.html" %}
+{% set active = 'stories' %}
+
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/story_detail.css') }}">
 
-<a href="/stories" class="story-back-link">&larr; Back to Attack Stories</a>
-
-<!-- Header Card -->
-<section class="card story-header-box">
-    <div class="story-header-title">
-        <span>⚡ {{ story.title or ('Attack Story #' ~ story.id) }}</span>
+<div class="story-header">
+    <a href="/stories" class="back-link">&larr; Back to Stories</a>
+    <h1>{{ story.title }}</h1>
+    <div class="story-meta">
         <span class="badge state-{{ story.status }}">{{ story.status }}</span>
+        <span class="pill mono">{{ story.attack_id[:16] }}</span>
     </div>
-    <div class="story-meta-row">
-        <span><strong>Attack UID:</strong> <code class="mono">{{ story.attack_id }}</code></span>
-        <span><strong>Started:</strong> {{ story.started_at | fmt_ts }}</span>
-        <span><strong>Ended:</strong> {{ story.ended_at | fmt_ts }}</span>
-        <span><strong>Total Events:</strong> {{ story.events | length }}</span>
+</div>
+
+<!-- Summary card -->
+<section class="card">
+    <h2>Summary</h2>
+    <p class="narrative-block">{{ story.narrative }}</p>
+    <div class="stat-row">
+        <div class="stat"><span>Events</span><b>{{ story.events|length }}</b></div>
+        <div class="stat"><span>Tactics</span><b>{{ story.tactics|length }}</b></div>
+        <div class="stat"><span>Impacted Assets</span><b>{{ blast.impacted_count or 0 }}</b></div>
     </div>
 </section>
 
-<!-- Section 1: Narrative -->
-{% if story.narrative %}
+<!-- Timeline -->
 <section class="card">
-    <div class="card-header">
-        <h2>📖 Incident Reconstruction Narrative</h2>
-        <span class="badge info">AI &amp; Correlation Narrative</span>
-    </div>
-    <div class="narrative-block">{{ story.narrative }}</div>
+    <h2>⏱️ Timeline</h2>
+    <ol class="story-timeline">
+    {% for e in story.events %}
+        <li class="timeline-item tl-{{ e.evidence_kind }}">
+            <div class="time mono">{{ e.occurred_at[11:19] if e.occurred_at and e.occurred_at|length >= 19 else e.occurred_at }}</div>
+            <div class="body">
+                <div class="meta">
+                    <span class="pill">{{ e.evidence_kind }}</span>
+                    {% if e.severity %}<span class="badge sev-{{ e.severity }}">{{ e.severity }}</span>{% endif %}
+                    {% if e.tactic %}<span class="tactic-tag">{{ e.tactic }}</span>{% endif %}
+                </div>
+                <div class="title">{{ e.title }}</div>
+                {% if e.details %}
+                <details><summary>Details</summary><pre>{{ e.details | tojson(indent=2) }}</pre></details>
+                {% endif %}
+            </div>
+        </li>
+    {% else %}
+        <li class="muted">No timeline events.</li>
+    {% endfor %}
+    </ol>
 </section>
-{% endif %}
 
-<!-- Section 2: MITRE ATT&CK Tactics Alignment -->
+<!-- MITRE Tactics -->
 <section class="card">
-    <div class="card-header">
-        <h2>🛡️ MITRE ATT&amp;CK Tactics Alignment</h2>
-        <span class="badge info">{{ story.tactics | length }} Tactics Mapped</span>
-    </div>
-    {% if story.tactics %}
+    <h2>🎯 MITRE ATT&amp;CK Tactics</h2>
     <div class="tactics-grid">
-        {% for t in story.tactics %}
+    {% for t in story.tactics %}
         <div class="tactic-card">
-            <div class="tactic-card-header">
-                <span class="tactic-name">{{ t.tactic }}</span>
-                <span class="pill">{{ t.evidence_count }} evidence</span>
+            <div class="tactic-name">{{ t.tactic }}</div>
+            <div class="tactic-bar">
+                <div class="bar-fill" style="width: {{ (t.confidence or 0) * 100 }}%"></div>
             </div>
-            <div class="confidence-bar-wrapper">
-                <div class="confidence-bar" style="width: {{ (t.confidence * 100) | round }}%;"></div>
-            </div>
-            <div class="confidence-label">
-                <span>Confidence</span>
-                <span>{{ (t.confidence * 100) | round }}%</span>
+            <div class="tactic-meta">
+                {{ t.evidence_count }} events &bull; conf {{ '%.2f' % (t.confidence or 0) }}
             </div>
         </div>
-        {% endfor %}
-    </div>
     {% else %}
-    <p class="muted">No MITRE ATT&CK tactics classified for this story yet.</p>
-    {% endif %}
+        <div class="muted">No tactics tagged.</div>
+    {% endfor %}
+    </div>
 </section>
 
-<!-- Section 3: Blast Radius Propagation Graph -->
+<!-- Blast Radius -->
+{% if blast.impacted_count %}
 <section class="card">
-    <div class="card-header">
-        <h2>💥 Cyber-Physical Blast Radius Propagation</h2>
-        <span class="badge danger" id="blast-impact-badge">
-            Total Impact: {{ blast.total_impact or 0 }}% &bull; {{ blast.impacted_count or 0 }} Impacted
-        </span>
+    <h2>💥 Blast Radius</h2>
+    <div class="stat-row">
+        <div class="stat"><span>Source</span><b class="mono">{{ blast.source_asset_id }}</b></div>
+        <div class="stat"><span>Severity</span><b>{{ blast.severity }}</b></div>
+        <div class="stat"><span>Impacted</span><b>{{ blast.impacted_count }}</b></div>
+        <div class="stat"><span>Total Impact</span><b>{{ blast.total_impact }}%</b></div>
     </div>
-    <p class="muted small">
-        Graph traversal originating at root target <strong>{{ blast.source_asset_id or 'Target' }}</strong>. 
-        Node radius scales with decay-weighted impact score; color reflects radial topology depth.
-    </p>
 
     <div class="blast-container">
         <svg id="blast-radius-svg" class="blast-svg"></svg>
     </div>
-
     <div class="blast-legend">
         <span><span class="blast-legend-dot source"></span> Source Asset</span>
         <span><span class="blast-legend-dot depth-1"></span> Depth 1 (Direct Impact)</span>
         <span><span class="blast-legend-dot depth-2"></span> Depth 2 (Secondary Cascade)</span>
         <span><span class="blast-legend-dot depth-3"></span> Depth 3+ (Downstream)</span>
-        {% if blast.critical_assets %}
-        <span style="margin-left: auto;" class="muted small">
-            ⚠️ <strong>Critical Assets at Risk:</strong> {{ blast.critical_assets | join(', ') }}
-        </span>
-        {% endif %}
     </div>
-</section>
 
-<!-- Section 4: Chronological Evidence Timeline -->
-<section class="card">
-    <div class="card-header">
-        <h2>⏱️ Chronological Evidence Timeline</h2>
-        <span class="badge info">{{ story.events | length }} Chronological Events</span>
-    </div>
-    {% include "partials/story_timeline.html" %}
+    <table class="tbl" style="margin-top: 16px;">
+        <thead><tr><th>Asset</th><th>Depth</th><th>Impact Score</th></tr></thead>
+        <tbody>
+        {% for a in blast.impacted %}
+            <tr>
+                <td class="mono font-bold">{{ a.asset_id }}</td>
+                <td>{{ a.depth }}</td>
+                <td>
+                    <span class="badge {% if a.impact_score >= 75 %}danger{% elif a.impact_score >= 50 %}warn{% elif a.impact_score >= 25 %}info{% else %}safe{% endif %}">
+                        {{ a.impact_score }}
+                    </span>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
 </section>
+{% endif %}
 
+<script src="{{ url_for('static', filename='js/story_timeline.js') }}"></script>
 <script src="{{ url_for('static', filename='js/blast_radius_viz.js') }}"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         const blastData = {{ blast | tojson }};
-        if (window.renderBlastRadius) {
+        if (window.renderBlastRadius && blastData && blastData.impacted_count) {
             window.renderBlastRadius(blastData, "#blast-radius-svg");
         }
     });

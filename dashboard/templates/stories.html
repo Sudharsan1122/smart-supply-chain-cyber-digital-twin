@@ -16,7 +16,7 @@
         </thead>
         <tbody id="stories-table-body">
         {% for s in stories %}
-            <tr style="cursor: pointer;" onclick="window.location.href='/stories/{{ s.attack_id }}'" class="story-row">
+            <tr style="cursor: pointer;" class="story-row" data-attack-id="{{ s.attack_id }}">
                 <td class="mono small"><a href="/stories/{{ s.attack_id }}" class="story-link">{{ s.attack_id[:16] }}…</a></td>
                 <td class="font-bold"><a href="/stories/{{ s.attack_id }}" class="story-link">{{ s.title }}</a></td>
                 <td><span class="badge state-{{ s.status }}">{{ s.status }}</span></td>
@@ -28,4 +28,16 @@
         </tbody>
     </table>
 </section>
+
+<script>
+document.querySelectorAll(".story-row").forEach(row => {
+    row.style.cursor = "pointer";
+    row.addEventListener("click", () => {
+        if (row.dataset.attackId) {
+            window.location.href = `/stories/${row.dataset.attackId}`;
+        }
+    });
+});
+</script>
 {% endblock %}
+

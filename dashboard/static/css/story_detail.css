@@ -1,5 +1,9 @@
 /* story_detail.css — Styling for Attack Story Detail & Blast Radius */
 
+.story-header {
+    margin-bottom: 20px;
+}
+.back-link,
 .story-back-link {
     display: inline-flex;
     align-items: center;
@@ -7,26 +11,23 @@
     color: #58a6ff;
     text-decoration: none;
     font-size: 13px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     transition: color 0.15s;
 }
+.back-link:hover,
 .story-back-link:hover {
     color: #79c0ff;
     text-decoration: underline;
 }
 
-.story-header-box {
-    margin-bottom: 20px;
-}
-.story-header-title {
+.story-header h1 {
     font-size: 24px;
     font-weight: 700;
     margin: 4px 0 10px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    color: #f0f6fc;
 }
+
+.story-meta,
 .story-meta-row {
     display: flex;
     gap: 12px;
@@ -34,6 +35,33 @@
     flex-wrap: wrap;
     font-size: 13px;
     color: #8b949e;
+    margin-top: 4px;
+}
+
+/* Stat row */
+.stat-row {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #21262d;
+}
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.stat span {
+    font-size: 11px;
+    color: #8b949e;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+.stat b {
+    font-size: 18px;
+    color: #f0f6fc;
 }
 
 /* Narrative section */
@@ -77,6 +105,7 @@
     font-size: 14px;
     color: #f0f6fc;
 }
+.tactic-bar,
 .confidence-bar-wrapper {
     width: 100%;
     background: #21262d;
@@ -84,96 +113,100 @@
     height: 8px;
     overflow: hidden;
 }
+.bar-fill,
 .confidence-bar {
     height: 100%;
     background: linear-gradient(90deg, #388bfd, #7a1a1a);
     border-radius: 4px;
     transition: width 0.3s;
 }
+.tactic-meta,
 .confidence-label {
     font-size: 11px;
     color: #8b949e;
     display: flex;
     justify-content: space-between;
 }
+.tactic-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(56, 139, 253, 0.15);
+    color: #58a6ff;
+    border: 1px solid rgba(56, 139, 253, 0.3);
+    font-size: 11px;
+    font-weight: 600;
+}
 
-/* Timeline */
-.timeline-list {
-    position: relative;
-    padding-left: 28px;
+/* Story Timeline (spec structure) */
+.story-timeline {
+    list-style: none;
+    padding-left: 20px;
+    border-left: 2px solid #30363d;
     margin-top: 16px;
 }
-.timeline-list::before {
-    content: '';
-    position: absolute;
-    top: 6px;
-    bottom: 6px;
-    left: 10px;
-    width: 2px;
-    background: #30363d;
-}
-.timeline-item {
+.story-timeline .timeline-item {
     position: relative;
-    margin-bottom: 20px;
+    padding: 12px 0 16px 20px;
 }
-.timeline-bullet {
+.story-timeline .timeline-item::before {
+    content: "";
     position: absolute;
-    left: -24px;
-    top: 4px;
+    left: -27px;
+    top: 16px;
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: #7a1a1a;
+    background: #58a6ff;
     border: 2px solid #0d1117;
     box-shadow: 0 0 0 2px #30363d;
 }
-.timeline-bullet.crit { background: #b91c1c; }
-.timeline-bullet.high { background: #ea580c; }
-.timeline-bullet.med  { background: #d97706; }
-.timeline-bullet.info { background: #388bfd; }
-
-.timeline-content {
+.story-timeline .timeline-item.tl-detection::before {
+    background: #f85149;
+    box-shadow: 0 0 6px rgba(248, 81, 73, 0.5);
+}
+.story-timeline .timeline-item.tl-incident::before {
+    background: #d29922;
+}
+.story-timeline .timeline-item.tl-transition::before {
+    background: #bc8cff;
+}
+.story-timeline .time {
+    font-size: 12px;
+    color: #8b949e;
+    margin-bottom: 4px;
+}
+.story-timeline .body {
     background: #161b22;
     border: 1px solid #30363d;
     border-radius: 6px;
     padding: 12px 14px;
 }
-.timeline-header {
+.story-timeline .body .meta {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 6px;
+    flex-wrap: wrap;
 }
-.timeline-badges {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.timeline-time {
-    font-family: ui-monospace, monospace;
-    font-size: 12px;
-    color: #8b949e;
-}
-.timeline-title {
+.story-timeline .body .title {
     font-weight: 600;
     font-size: 13.5px;
     color: #e6edf3;
 }
-.timeline-details {
+.story-timeline .body details {
     margin-top: 8px;
     font-size: 12px;
 }
-.timeline-details summary {
+.story-timeline .body details summary {
     cursor: pointer;
     color: #58a6ff;
     user-select: none;
 }
-.timeline-details summary:hover {
+.story-timeline .body details summary:hover {
     text-decoration: underline;
 }
-.timeline-details pre {
+.story-timeline .body details pre {
     background: #0d1117;
     border: 1px solid #30363d;
     border-radius: 4px;
@@ -188,12 +221,12 @@
 .blast-container {
     position: relative;
     width: 100%;
-    height: 480px;
+    height: 440px;
     background: #0d1117;
     border: 1px solid #30363d;
     border-radius: 8px;
     overflow: hidden;
-    margin-top: 12px;
+    margin-top: 14px;
 }
 .blast-svg {
     width: 100%;

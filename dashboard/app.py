@@ -65,7 +65,9 @@ def stories():
 
 @app.route("/stories/<attack_id>")
 def story_detail(attack_id):
-    story = api_get(f"/api/attack-stories/{attack_id}") or {}
+    story = api_get(f"/api/attack-stories/{attack_id}")
+    if not story or not isinstance(story, dict) or not story.get("attack_id"):
+        return render_template("404.html", active="stories", refresh=REFRESH, api_url=API_URL), 404
     blast = api_get(f"/api/blast-radius/story/{attack_id}") or {}
     return render_template(
         "story_detail.html",
@@ -75,6 +77,8 @@ def story_detail(attack_id):
         refresh=REFRESH,
         api_url=API_URL,
     )
+
+
 
 
 
