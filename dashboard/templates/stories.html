@@ -16,9 +16,9 @@
         </thead>
         <tbody id="stories-table-body">
         {% for s in stories %}
-            <tr>
-                <td class="mono small">{{ s.attack_id[:16] }}</td>
-                <td class="font-bold">{{ s.title }}</td>
+            <tr style="cursor: pointer;" onclick="window.location.href='/stories/{{ s.attack_id }}'" class="story-row">
+                <td class="mono small"><a href="/stories/{{ s.attack_id }}" class="story-link">{{ s.attack_id[:16] }}…</a></td>
+                <td class="font-bold"><a href="/stories/{{ s.attack_id }}" class="story-link">{{ s.title }}</a></td>
                 <td><span class="badge state-{{ s.status }}">{{ s.status }}</span></td>
                 <td class="muted small">{{ s.created_at | fmt_ts }}</td>
             </tr>

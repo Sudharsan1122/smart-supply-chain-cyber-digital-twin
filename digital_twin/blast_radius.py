@@ -32,7 +32,7 @@ def compute_blast_radius(source_asset_id, severity="high", max_depth=MAX_DEPTH, 
         raise ValueError(f"Unknown asset: {source_asset_id}")
     base = SEVERITY_IMPACT.get(severity, 0.5)
     bc = betweenness_centrality()
-    max_bc = max(bc.values()) if bc else 1.0
+    max_bc = max(bc.values()) if bc and max(bc.values()) > 0 else 1.0
     centrality = {k: (v / max_bc) for k, v in bc.items()}
 
     result = BlastRadiusResult(source_asset_id, severity, max_depth)
@@ -44,7 +44,8 @@ def compute_blast_radius(source_asset_id, severity="high", max_depth=MAX_DEPTH, 
         node, depth, path = q.popleft()
         if depth >= max_depth:
             continue
-        for child in twin_graph.direct_children(node):
+        neighbors = list(dict.fromkeys(twin_graph.direct_children(node) + twin_graph.direct_parents(node)))
+        for child in neighbors:
             nd = depth + 1
             if child in visited and visited[child] <= nd:
                 continue

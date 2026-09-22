@@ -61,6 +61,21 @@ def stories():
     )
 
 
+@app.route("/stories/<attack_id>")
+def story_detail(attack_id):
+    story = api_get(f"/api/attack-stories/{attack_id}") or {}
+    blast = api_get(f"/api/blast-radius/story/{attack_id}") or {}
+    return render_template(
+        "story_detail.html",
+        story=story,
+        blast=blast,
+        active="stories",
+        refresh=REFRESH,
+        api_url=API_URL,
+    )
+
+
+
 @app.route("/threat-intel")
 def threat_intel():
     iocs = api_get("/api/iocs", params={"limit": 100}) or []
@@ -232,6 +247,19 @@ def live_triage():
     metrics = api_get("/api/triage/metrics") or {}
     recent = api_get("/api/triage", params={"limit": 100}) or []
     return jsonify({"metrics": metrics, "recent": recent})
+
+
+@app.route("/live/blast-radius/story/<attack_id>")
+def live_blast_story(attack_id):
+    """Return blast radius propagation data for an attack story."""
+    return jsonify(api_get(f"/api/blast-radius/story/{attack_id}") or {})
+
+
+@app.route("/live/triage/rules")
+def live_triage_rules():
+    """Return per-rule triage metrics for charts."""
+    return jsonify(api_get("/api/triage/metrics/rules") or {"rules": []})
+
 
 
 @app.route("/live/map-data")

@@ -40,3 +40,42 @@ async def get_for_source(asset_id: str, limit: int = Query(200),
     rows = (await session.execute(stmt)).scalars().all()
     return [{"impacted_asset": twin_graph.asset_id_for(r.impacted_asset_id),
              "depth": r.depth, "impact_score": r.impact_score} for r in rows]
+
+
+@router.get("/story/{attack_id}")
+async def get_for_story(attack_id: str, session: AsyncSession = Depends(get_db)):
+    """Compute and return blast radius propagation for an attack story."""
+    stmt = select(m.AttackStory).where(m.AttackStory.attack_id == attack_id)
+    story = (await session.execute(stmt)).scalar_one_or_none()
+    if not story and attack_id.isdigit():
+        story = await session.get(m.AttackStory, int(attack_id))
+    if not story:
+        raise HTTPException(404, f"Story '{attack_id}' not found")
+
+    target_asset = None
+    if story.title and "->" in story.title:
+        candidate = story.title.split("->")[-1].strip()
+        if twin_graph.has_node(candidate):
+            target_asset = candidate
+
+    if not target_asset:
+        stmt_ev = (select(m.Asset.asset_id)
+                   .join(m.AttackStoryEvent, m.AttackStoryEvent.asset_id == m.Asset.id)
+                   .where(m.AttackStoryEvent.story_id == story.id)
+                   .limit(1))
+        target_asset = (await session.execute(stmt_ev)).scalar_one_or_none()
+
+    if not target_asset or not twin_graph.has_node(target_asset):
+        target_asset = "VGW-101" if twin_graph.has_node("VGW-101") else list(twin_graph.graph.nodes)[0]
+
+    result = compute_blast_radius(target_asset, severity="high", max_depth=4)
+    return {
+        "source_asset_id": result.source_asset_id,
+        "severity": result.source_severity,
+        "impacted_count": len(result.impacted),
+        "total_impact": result.total_impact,
+        "by_depth": result.by_depth,
+        "critical_assets": result.critical_assets,
+        "impacted": result.impacted,
+    }
+

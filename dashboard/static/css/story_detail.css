@@ -1,0 +1,236 @@
+/* story_detail.css — Styling for Attack Story Detail & Blast Radius */
+
+.story-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #58a6ff;
+    text-decoration: none;
+    font-size: 13px;
+    margin-bottom: 16px;
+    transition: color 0.15s;
+}
+.story-back-link:hover {
+    color: #79c0ff;
+    text-decoration: underline;
+}
+
+.story-header-box {
+    margin-bottom: 20px;
+}
+.story-header-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 4px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.story-meta-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: #8b949e;
+}
+
+/* Narrative section */
+.narrative-block {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 16px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #c9d1d9;
+    white-space: pre-wrap;
+    max-height: 340px;
+    overflow-y: auto;
+}
+
+/* MITRE Tactics Cards */
+.tactics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+}
+.tactic-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.tactic-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.tactic-name {
+    font-weight: 700;
+    font-size: 14px;
+    color: #f0f6fc;
+}
+.confidence-bar-wrapper {
+    width: 100%;
+    background: #21262d;
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+}
+.confidence-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #388bfd, #7a1a1a);
+    border-radius: 4px;
+    transition: width 0.3s;
+}
+.confidence-label {
+    font-size: 11px;
+    color: #8b949e;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* Timeline */
+.timeline-list {
+    position: relative;
+    padding-left: 28px;
+    margin-top: 16px;
+}
+.timeline-list::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 10px;
+    width: 2px;
+    background: #30363d;
+}
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+.timeline-bullet {
+    position: absolute;
+    left: -24px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #7a1a1a;
+    border: 2px solid #0d1117;
+    box-shadow: 0 0 0 2px #30363d;
+}
+.timeline-bullet.crit { background: #b91c1c; }
+.timeline-bullet.high { background: #ea580c; }
+.timeline-bullet.med  { background: #d97706; }
+.timeline-bullet.info { background: #388bfd; }
+
+.timeline-content {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px 14px;
+}
+.timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.timeline-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.timeline-time {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: #8b949e;
+}
+.timeline-title {
+    font-weight: 600;
+    font-size: 13.5px;
+    color: #e6edf3;
+}
+.timeline-details {
+    margin-top: 8px;
+    font-size: 12px;
+}
+.timeline-details summary {
+    cursor: pointer;
+    color: #58a6ff;
+    user-select: none;
+}
+.timeline-details summary:hover {
+    text-decoration: underline;
+}
+.timeline-details pre {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-top: 6px;
+    overflow-x: auto;
+    font-size: 11px;
+    color: #8b949e;
+}
+
+/* Blast Radius Visualization Card */
+.blast-container {
+    position: relative;
+    width: 100%;
+    height: 480px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 12px;
+}
+.blast-svg {
+    width: 100%;
+    height: 100%;
+}
+.blast-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #8b949e;
+}
+.blast-legend-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+.blast-legend-dot.source { background: #b91c1c; box-shadow: 0 0 6px #b91c1c; }
+.blast-legend-dot.depth-1 { background: #ea580c; }
+.blast-legend-dot.depth-2 { background: #d97706; }
+.blast-legend-dot.depth-3 { background: #10b981; }
+
+.blast-tooltip {
+    position: absolute;
+    display: none;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #f0f6fc;
+    font-size: 12px;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+}

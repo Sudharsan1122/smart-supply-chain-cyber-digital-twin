@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/story_detail.css') }}">
+
+<a href="/stories" class="story-back-link">&larr; Back to Attack Stories</a>
+
+<!-- Header Card -->
+<section class="card story-header-box">
+    <div class="story-header-title">
+        <span>⚡ {{ story.title or ('Attack Story #' ~ story.id) }}</span>
+        <span class="badge state-{{ story.status }}">{{ story.status }}</span>
+    </div>
+    <div class="story-meta-row">
+        <span><strong>Attack UID:</strong> <code class="mono">{{ story.attack_id }}</code></span>
+        <span><strong>Started:</strong> {{ story.started_at | fmt_ts }}</span>
+        <span><strong>Ended:</strong> {{ story.ended_at | fmt_ts }}</span>
+        <span><strong>Total Events:</strong> {{ story.events | length }}</span>
+    </div>
+</section>
+
+<!-- Section 1: Narrative -->
+{% if story.narrative %}
+<section class="card">
+    <div class="card-header">
+        <h2>📖 Incident Reconstruction Narrative</h2>
+        <span class="badge info">AI &amp; Correlation Narrative</span>
+    </div>
+    <div class="narrative-block">{{ story.narrative }}</div>
+</section>
+{% endif %}
+
+<!-- Section 2: MITRE ATT&CK Tactics Alignment -->
+<section class="card">
+    <div class="card-header">
+        <h2>🛡️ MITRE ATT&amp;CK Tactics Alignment</h2>
+        <span class="badge info">{{ story.tactics | length }} Tactics Mapped</span>
+    </div>
+    {% if story.tactics %}
+    <div class="tactics-grid">
+        {% for t in story.tactics %}
+        <div class="tactic-card">
+            <div class="tactic-card-header">
+                <span class="tactic-name">{{ t.tactic }}</span>
+                <span class="pill">{{ t.evidence_count }} evidence</span>
+            </div>
+            <div class="confidence-bar-wrapper">
+                <div class="confidence-bar" style="width: {{ (t.confidence * 100) | round }}%;"></div>
+            </div>
+            <div class="confidence-label">
+                <span>Confidence</span>
+                <span>{{ (t.confidence * 100) | round }}%</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">No MITRE ATT&CK tactics classified for this story yet.</p>
+    {% endif %}
+</section>
+
+<!-- Section 3: Blast Radius Propagation Graph -->
+<section class="card">
+    <div class="card-header">
+        <h2>💥 Cyber-Physical Blast Radius Propagation</h2>
+        <span class="badge danger" id="blast-impact-badge">
+            Total Impact: {{ blast.total_impact or 0 }}% &bull; {{ blast.impacted_count or 0 }} Impacted
+        </span>
+    </div>
+    <p class="muted small">
+        Graph traversal originating at root target <strong>{{ blast.source_asset_id or 'Target' }}</strong>. 
+        Node radius scales with decay-weighted impact score; color reflects radial topology depth.
+    </p>
+
+    <div class="blast-container">
+        <svg id="blast-radius-svg" class="blast-svg"></svg>
+    </div>
+
+    <div class="blast-legend">
+        <span><span class="blast-legend-dot source"></span> Source Asset</span>
+        <span><span class="blast-legend-dot depth-1"></span> Depth 1 (Direct Impact)</span>
+        <span><span class="blast-legend-dot depth-2"></span> Depth 2 (Secondary Cascade)</span>
+        <span><span class="blast-legend-dot depth-3"></span> Depth 3+ (Downstream)</span>
+        {% if blast.critical_assets %}
+        <span style="margin-left: auto;" class="muted small">
+            ⚠️ <strong>Critical Assets at Risk:</strong> {{ blast.critical_assets | join(', ') }}
+        </span>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Section 4: Chronological Evidence Timeline -->
+<section class="card">
+    <div class="card-header">
+        <h2>⏱️ Chronological Evidence Timeline</h2>
+        <span class="badge info">{{ story.events | length }} Chronological Events</span>
+    </div>
+    {% include "partials/story_timeline.html" %}
+</section>
+
+<script src="{{ url_for('static', filename='js/blast_radius_viz.js') }}"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const blastData = {{ blast | tojson }};
+        if (window.renderBlastRadius) {
+            window.renderBlastRadius(blastData, "#blast-radius-svg");
+        }
+    });
+</script>
+{% endblock %}

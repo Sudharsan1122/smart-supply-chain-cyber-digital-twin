@@ -1,0 +1,31 @@
+<!-- partials/story_timeline.html — Ordered Story Timeline -->
+<div class="timeline-list">
+{% for e in story.events %}
+    <div class="timeline-item">
+        <span class="timeline-bullet {{ e.severity or 'info' }}"></span>
+        <div class="timeline-content">
+            <div class="timeline-header">
+                <div class="timeline-badges">
+                    <span class="pill">{{ e.evidence_kind | upper }}</span>
+                    {% if e.severity %}
+                    <span class="badge sev-{{ e.severity }}">{{ e.severity }}</span>
+                    {% endif %}
+                    {% if e.tactic %}
+                    <span class="badge info">{{ e.tactic }}</span>
+                    {% endif %}
+                </div>
+                <span class="timeline-time">{{ e.occurred_at[11:19] if e.occurred_at and e.occurred_at|length >= 19 else e.occurred_at }}</span>
+            </div>
+            <div class="timeline-title">{{ e.title }}</div>
+            {% if e.details %}
+            <details class="timeline-details">
+                <summary>Evidence Details</summary>
+                <pre><code>{{ e.details | tojson(indent=2) }}</code></pre>
+            </details>
+            {% endif %}
+        </div>
+    </div>
+{% else %}
+    <p class="muted">No detailed timeline events recorded for this story.</p>
+{% endfor %}
+</div>

@@ -3,19 +3,19 @@
 <section class="kpis">
     <div class="kpi">
         <div class="kpi-label">Total Triaged</div>
-        <div class="kpi-value" id="kpi-total-triaged">{{ metrics.total or 0 }}</div>
+        <div class="kpi-value" id="kpi-total-triaged" style="font-size: 32px; font-weight: 800;">{{ metrics.total or 0 }}</div>
     </div>
     <div class="kpi">
         <div class="kpi-label">Precision</div>
-        <div class="kpi-value good" id="kpi-precision">{{ '%.2f' % (metrics.precision or 0) }}</div>
+        <div class="kpi-value good" id="kpi-precision" style="font-size: 32px; font-weight: 800;">{{ '%.2f' % (metrics.precision or 0) }}</div>
     </div>
     <div class="kpi">
         <div class="kpi-label">Recall</div>
-        <div class="kpi-value good" id="kpi-recall">{{ '%.2f' % (metrics.recall or 0) }}</div>
+        <div class="kpi-value good" id="kpi-recall" style="font-size: 32px; font-weight: 800;">{{ '%.2f' % (metrics.recall or 0) }}</div>
     </div>
     <div class="kpi">
         <div class="kpi-label">F1-Score</div>
-        <div class="kpi-value good" id="kpi-f1">{{ '%.2f' % (metrics.f1 or 0) }}</div>
+        <div class="kpi-value good" id="kpi-f1" style="font-size: 32px; font-weight: 800;">{{ '%.2f' % (metrics.f1 or 0) }}</div>
     </div>
 </section>
 
@@ -45,6 +45,32 @@
         </tbody>
     </table>
 </section>
+
+<!-- Per-Rule F1 and Global Metrics Charts -->
+<div class="grid-2">
+    <section class="card">
+        <div class="card-header">
+            <h2>📊 Per-Rule F1 Score</h2>
+            <span class="muted small">F1 breakdown across rules + ML</span>
+        </div>
+        <div style="height: 250px; position: relative;">
+            <canvas id="rulesF1Chart"></canvas>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card-header">
+            <h2>📈 Global Metrics Over Time</h2>
+            <span class="muted small">Precision, Recall &amp; F1 live window</span>
+        </div>
+        <div style="height: 250px; position: relative;">
+            <canvas id="globalMetricsChart"></canvas>
+        </div>
+    </section>
+</div>
+
+<script src="{{ url_for('static', filename='js/triage_charts.js') }}"></script>
+
 
 <section class="card">
     <div class="card-header">
