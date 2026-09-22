@@ -1,0 +1,270 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif">
+  <defs>
+    <!-- Drop Shadow Filter -->
+    <filter id="box-shadow" x="-5%" y="-10%" width="110%" height="130%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.07" />
+    </filter>
+    <filter id="highlight-shadow" x="-5%" y="-10%" width="110%" height="130%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#7a1a1a" flood-opacity="0.18" />
+    </filter>
+
+    <!-- Arrow Marker -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#7a1a1a" />
+    </marker>
+    <marker id="arrow-sm" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#7a1a1a" />
+    </marker>
+
+    <!-- Gradients -->
+    <linearGradient id="twin-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fff5f5" />
+      <stop offset="100%" stop-color="#fee2e2" />
+    </linearGradient>
+    <linearGradient id="header-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7a1a1a" />
+      <stop offset="100%" stop-color="#991b1b" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="#F8F9FA" />
+  <rect x="20" y="20" width="1880" height="1040" rx="16" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5" />
+
+  <!-- Title Header -->
+  <g transform="translate(80, 52)">
+    <rect x="0" y="-8" width="8" height="38" rx="4" fill="#7a1a1a" />
+    <text x="24" y="20" font-size="24" font-weight="700" fill="#7a1a1a" letter-spacing="0.5">SMART SUPPLY CHAIN CYBER DIGITAL TWIN</text>
+    <text x="590" y="20" font-size="18" font-weight="400" fill="#555E68">| Layered Pipeline Architecture &amp; Data Flow</text>
+    <rect x="1560" y="-4" width="120" height="28" rx="14" fill="#fdf5f5" stroke="#7a1a1a" stroke-width="1" />
+    <text x="1620" y="15" font-size="12" font-weight="600" fill="#7a1a1a" text-anchor="middle">7-LAYER STACK</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- LAYER 1: INGESTION -->
+  <!-- ===================================================================== -->
+  <g id="layer-1">
+    <!-- Layer Badge -->
+    <rect x="80" y="96" width="130" height="24" rx="12" fill="#7a1a1a" />
+    <text x="145" y="112" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">LAYER 1 · INGESTION</text>
+
+    <!-- Box 1A: REST API -->
+    <g filter="url(#box-shadow)">
+      <rect x="80" y="126" width="565" height="74" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="80" y="126" width="6" height="74" rx="3" fill="#2563EB" />
+      <text x="106" y="154" font-size="17" font-weight="700" fill="#212529">REST API</text>
+      <text x="106" y="178" font-size="13.5" font-family="'Consolas', monospace" fill="#555E68">POST /api/telemetry  ·  POST /api/events</text>
+      <rect x="560" y="146" width="70" height="24" rx="4" fill="#EFF6FF" stroke="#BFDBFE" />
+      <text x="595" y="162" font-size="11" font-weight="600" fill="#1D4ED8" text-anchor="middle">HTTP/JSON</text>
+    </g>
+
+    <!-- Box 1B: MQTT Broker -->
+    <g filter="url(#box-shadow)">
+      <rect x="677" y="126" width="565" height="74" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="677" y="126" width="6" height="74" rx="3" fill="#0D9488" />
+      <text x="703" y="154" font-size="17" font-weight="700" fill="#212529">MQTT Broker (Mosquitto 2.0)</text>
+      <text x="703" y="178" font-size="13.5" font-family="'Consolas', monospace" fill="#555E68">supply_chain/telemetry/+  ·  supply_chain/events/+</text>
+      <rect x="1157" y="146" width="70" height="24" rx="4" fill="#F0FDFA" stroke="#99F6E4" />
+      <text x="1192" y="162" font-size="11" font-weight="600" fill="#0F766E" text-anchor="middle">Port 1883</text>
+    </g>
+
+    <!-- Box 1C: External Sources -->
+    <g filter="url(#box-shadow)">
+      <rect x="1275" y="126" width="565" height="74" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="1275" y="126" width="6" height="74" rx="3" fill="#6366F1" />
+      <text x="1301" y="154" font-size="17" font-weight="700" fill="#212529">External Sources &amp; Telemetry Feed</text>
+      <text x="1301" y="178" font-size="13.5" fill="#555E68">Fleet GPS Simulators  ·  Warehouse IoT Sensors  ·  3rd-Party Logistics</text>
+      <rect x="1755" y="146" width="70" height="24" rx="4" fill="#EEF2FF" stroke="#C7D2FE" />
+      <text x="1790" y="162" font-size="11" font-weight="600" fill="#4338CA" text-anchor="middle">Edge / IoT</text>
+    </g>
+  </g>
+
+  <!-- Arrows L1 -> L2 -->
+  <line x1="362" y1="200" x2="362" y2="242" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <line x1="960" y1="200" x2="960" y2="242" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <line x1="1557" y1="200" x2="1557" y2="242" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <text x="968" y="226" font-size="12" font-style="italic" font-weight="600" fill="#7a1a1a">raw payload stream</text>
+
+  <!-- ===================================================================== -->
+  <!-- LAYER 2: VALIDATION & NORMALIZATION -->
+  <!-- ===================================================================== -->
+  <g id="layer-2">
+    <rect x="80" y="246" width="230" height="24" rx="12" fill="#7a1a1a" />
+    <text x="195" y="262" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">LAYER 2 · VALIDATION &amp; NORMALIZATION</text>
+
+    <g filter="url(#box-shadow)">
+      <rect x="80" y="276" width="1760" height="68" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="80" y="276" width="6" height="68" rx="3" fill="#D97706" />
+      <text x="106" y="304" font-size="18" font-weight="700" fill="#212529">Validation &amp; Schema Normalization</text>
+      <text x="106" y="328" font-size="13.5" fill="#555E68">
+        <tspan font-family="'Consolas', monospace" font-weight="600" fill="#B45309">validators.py</tspan> (physical range bounds + anomaly flagging: battery, speed, temp, login bursts)  ·  
+        <tspan font-family="'Consolas', monospace" font-weight="600" fill="#B45309">normalizer.py</tspan> (multi-metric timeseries decomposition + live twin state projection)
+      </text>
+      <rect x="1710" y="294" width="115" height="26" rx="4" fill="#FEF3C7" stroke="#FDE68A" />
+      <text x="1767" y="311" font-size="11" font-weight="600" fill="#92400E" text-anchor="middle">Pydantic v2.9</text>
+    </g>
+  </g>
+
+  <!-- Arrow L2 -> L3 -->
+  <line x1="960" y1="344" x2="960" y2="384" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <text x="968" y="368" font-size="12" font-style="italic" font-weight="600" fill="#7a1a1a">normalized records &amp; schema-checked metrics</text>
+
+  <!-- ===================================================================== -->
+  <!-- LAYER 3: STORAGE -->
+  <!-- ===================================================================== -->
+  <g id="layer-3">
+    <rect x="80" y="388" width="130" height="24" rx="12" fill="#7a1a1a" />
+    <text x="145" y="404" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">LAYER 3 · STORAGE</text>
+
+    <g filter="url(#box-shadow)">
+      <rect x="80" y="418" width="1760" height="68" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="80" y="418" width="6" height="68" rx="3" fill="#3B82F6" />
+      <text x="106" y="446" font-size="18" font-weight="700" fill="#212529">PostgreSQL 16 Relational Engine — 20 Production Tables</text>
+      <text x="106" y="470" font-size="13" font-family="'Consolas', monospace" fill="#555E68">assets · telemetry · security_events · twin_states · detections · risk_scores · incidents · iocs · ioc_observations · attack_stories · blast_radius · triage · audit_log</text>
+      <rect x="1705" y="436" width="120" height="26" rx="4" fill="#EFF6FF" stroke="#BFDBFE" />
+      <text x="1765" y="453" font-size="11" font-weight="600" fill="#1E40AF" text-anchor="middle">SQLAlchemy 2.0</text>
+    </g>
+  </g>
+
+  <!-- Arrow L3 -> L4 -->
+  <line x1="960" y1="486" x2="960" y2="526" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <text x="968" y="510" font-size="12" font-style="italic" font-weight="600" fill="#7a1a1a">read / reconcile state graph</text>
+
+  <!-- ===================================================================== -->
+  <!-- LAYER 4: CYBER DIGITAL TWIN (HIGHLIGHTED) -->
+  <!-- ===================================================================== -->
+  <g id="layer-4" filter="url(#highlight-shadow)">
+    <!-- Box with prominent maroon gradient and thick accent border -->
+    <rect x="80" y="530" width="1760" height="80" rx="10" fill="url(#twin-grad)" stroke="#7a1a1a" stroke-width="3" />
+    <rect x="80" y="530" width="8" height="80" rx="4" fill="#7a1a1a" />
+
+    <!-- Layer Badge -->
+    <rect x="106" y="542" width="250" height="24" rx="12" fill="#7a1a1a" />
+    <text x="231" y="558" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">LAYER 4 · CORE CYBER DIGITAL TWIN</text>
+
+    <text x="372" y="560" font-size="20" font-weight="800" fill="#7a1a1a">Cyber-Physical Digital Twin — In-Memory NetworkX DiGraph</text>
+    <text x="106" y="594" font-size="14" fill="#212529">
+      <tspan font-weight="700" fill="#7a1a1a">32 Heterogeneous Asset Nodes</tspan> (Fleet, Warehouses, Gateways, SCADA Sensors)  ·  
+      <tspan font-weight="700" fill="#7a1a1a">16 Cyber-Physical Edges</tspan>  ·  
+      Live State Synchronization  ·  Betweenness Centrality Ranking  ·  Topology Drift Detection &amp; Graph Topology Metrics
+    </text>
+
+    <rect x="1660" y="548" width="165" height="30" rx="6" fill="#7a1a1a" />
+    <text x="1742" y="568" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">NetworkX 3.3 Engine</text>
+  </g>
+
+  <!-- Arrows L4 -> L5 (Split into 4 arrows) -->
+  <line x1="292" y1="610" x2="292" y2="656" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <line x1="737" y1="610" x2="737" y2="656" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <line x1="1182" y1="610" x2="1182" y2="656" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <line x1="1627" y1="610" x2="1627" y2="656" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <text x="495" y="638" font-size="12" font-style="italic" font-weight="600" fill="#7a1a1a">live twin context &amp; topology broadcast</text>
+
+  <!-- ===================================================================== -->
+  <!-- LAYER 5: DETECTION & ANALYTICS -->
+  <!-- ===================================================================== -->
+  <g id="layer-5">
+    <rect x="80" y="660" width="225" height="24" rx="12" fill="#7a1a1a" />
+    <text x="192" y="676" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">LAYER 5 · DETECTION &amp; ANALYTICS</text>
+
+    <!-- Box 5A: Detection -->
+    <g filter="url(#box-shadow)">
+      <rect x="80" y="690" width="425" height="74" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="80" y="690" width="5" height="74" rx="2.5" fill="#EF4444" />
+      <text x="100" y="718" font-size="16" font-weight="700" fill="#212529">Detection Engine</text>
+      <text x="100" y="742" font-size="13" fill="#555E68">9 Hybrid Rules + ML Models</text>
+      <text x="100" y="756" font-size="11" fill="#555E68">(Isolation Forest · One-Class SVM)</text>
+    </g>
+
+    <!-- Box 5B: Correlation -->
+    <g filter="url(#box-shadow)">
+      <rect x="525" y="690" width="425" height="74" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="525" y="690" width="5" height="74" rx="2.5" fill="#F97316" />
+      <text x="545" y="718" font-size="16" font-weight="700" fill="#212529">Incident Correlation</text>
+      <text x="545" y="742" font-size="13" fill="#555E68">6 Cross-Asset Correlation Rules</text>
+      <text x="545" y="756" font-size="11" fill="#555E68">(Temporal windowing → incident cluster)</text>
+    </g>
+
+    <!-- Box 5C: IOC & Enrichment (C8) - HIGHLIGHTED IN YELLOW -->
+    <g filter="url(#box-shadow)">
+      <rect x="970" y="690" width="425" height="74" rx="8" fill="#FFF8E1" stroke="#F59E0B" stroke-width="2" />
+      <rect x="970" y="690" width="5" height="74" rx="2.5" fill="#F59E0B" />
+      <text x="990" y="718" font-size="16" font-weight="800" fill="#92400E">IOC + Enrichment (C8)</text>
+      <text x="990" y="742" font-size="13" font-weight="600" fill="#92400E">Live Cyber Threat Intelligence</text>
+      <text x="990" y="756" font-size="11" fill="#78350F">VirusTotal API · AbuseIPDB · AlienVault OTX</text>
+      <rect x="1310" y="700" width="72" height="20" rx="4" fill="#FDE68A" />
+      <text x="1346" y="714" font-size="10" font-weight="700" fill="#92400E" text-anchor="middle">ACTIVE TI</text>
+    </g>
+
+    <!-- Box 5D: Risk Scoring -->
+    <g filter="url(#box-shadow)">
+      <rect x="1415" y="690" width="425" height="74" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="1415" y="690" width="5" height="74" rx="2.5" fill="#8B5CF6" />
+      <text x="1435" y="718" font-size="16" font-weight="700" fill="#212529">Dynamic Risk Scoring</text>
+      <text x="1435" y="742" font-size="13" fill="#555E68">6 Weighted Graph Components</text>
+      <text x="1435" y="756" font-size="11" fill="#555E68">(Anomalies, Topology, Centrality, Exposure)</text>
+    </g>
+  </g>
+
+  <!-- Arrows L5 -> L6 (Merge into 3 arrows) -->
+  <line x1="365" y1="764" x2="365" y2="806" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <line x1="960" y1="764" x2="960" y2="806" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <line x1="1555" y1="764" x2="1555" y2="806" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <text x="968" y="790" font-size="12" font-style="italic" font-weight="600" fill="#7a1a1a">correlated findings &amp; risk vectors</text>
+
+  <!-- ===================================================================== -->
+  <!-- LAYER 6: RECONSTRUCTION & IMPACT -->
+  <!-- ===================================================================== -->
+  <g id="layer-6">
+    <rect x="80" y="810" width="240" height="24" rx="12" fill="#7a1a1a" />
+    <text x="200" y="826" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">LAYER 6 · RECONSTRUCTION &amp; IMPACT</text>
+
+    <!-- Box 6A: Attack Story Engine -->
+    <g filter="url(#box-shadow)">
+      <rect x="80" y="840" width="565" height="72" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="80" y="840" width="6" height="72" rx="3" fill="#EC4899" />
+      <text x="106" y="868" font-size="17" font-weight="700" fill="#212529">Attack Story Engine</text>
+      <text x="106" y="892" font-size="13" fill="#555E68">Chronological Timeline · MITRE ATT&amp;CK TTP Mapping · Narrative Generator</text>
+    </g>
+
+    <!-- Box 6B: Blast Radius -->
+    <g filter="url(#box-shadow)">
+      <rect x="677" y="840" width="565" height="72" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="677" y="840" width="6" height="72" rx="3" fill="#DC2626" />
+      <text x="703" y="868" font-size="17" font-weight="700" fill="#212529">Blast Radius Assessment</text>
+      <text x="703" y="892" font-size="13" fill="#555E68">Topology BFS Traversal · Hop-based Decay Weighting · Downstream Impact</text>
+    </g>
+
+    <!-- Box 6C: Triage -->
+    <g filter="url(#box-shadow)">
+      <rect x="1275" y="840" width="565" height="72" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="1275" y="840" width="6" height="72" rx="3" fill="#10B981" />
+      <text x="1301" y="868" font-size="17" font-weight="700" fill="#212529">Automated Alert Triage</text>
+      <text x="1301" y="892" font-size="13" fill="#555E68">Continuous Confusion Matrix (TP / FP / FN / TN) · Precision, Recall &amp; F1</text>
+    </g>
+  </g>
+
+  <!-- Arrows L6 -> L7 -->
+  <line x1="362" y1="912" x2="362" y2="952" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <line x1="960" y1="912" x2="960" y2="952" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <line x1="1557" y1="912" x2="1557" y2="952" stroke="#7a1a1a" stroke-width="2.5" marker-end="url(#arrow)" />
+  <text x="968" y="936" font-size="12" font-style="italic" font-weight="600" fill="#7a1a1a">actionable results &amp; real-time dashboard telemetry</text>
+
+  <!-- ===================================================================== -->
+  <!-- LAYER 7: PRESENTATION -->
+  <!-- ===================================================================== -->
+  <g id="layer-7">
+    <rect x="80" y="956" width="165" height="24" rx="12" fill="#7a1a1a" />
+    <text x="162" y="972" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">LAYER 7 · PRESENTATION</text>
+
+    <g filter="url(#box-shadow)">
+      <rect x="80" y="986" width="1760" height="66" rx="8" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1.5" />
+      <rect x="80" y="986" width="6" height="66" rx="3" fill="#6B7280" />
+      <text x="106" y="1014" font-size="18" font-weight="700" fill="#212529">FastAPI Swagger Documentation (:8000)  +  Flask Real-Time Monitoring Dashboard (:5000)</text>
+      <text x="106" y="1038" font-size="13.5" fill="#555E68">100+ REST Endpoints · Interactive D3 Force-Directed Topology Graph · Chart.js Analytics · Live Alert Triage &amp; Attack Storyboards</text>
+      <rect x="1685" y="1002" width="140" height="26" rx="4" fill="#F3F4F6" stroke="#E5E7EB" />
+      <text x="1755" y="1019" font-size="11" font-weight="600" fill="#374151" text-anchor="middle">4 Real-Time Tabs</text>
+    </g>
+  </g>
+
+</svg>

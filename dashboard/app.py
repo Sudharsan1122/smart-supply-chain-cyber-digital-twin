@@ -234,6 +234,85 @@ def live_triage():
     return jsonify({"metrics": metrics, "recent": recent})
 
 
+@app.route("/live/map-data")
+def live_map_data():
+    """Return all assets with GPS + risk for map rendering."""
+    assets = api_get("/api/assets", params={"limit": 200}) or []
+    risk = api_get("/api/risk/top", params={"n": 100}) or {"ranked": []}
+    state = api_get("/api/twin/state") or {"states": {}}
+
+    risk_by_id = {a["asset_id"]: a.get("score", 0) for a in risk.get("ranked", [])}
+    states = state.get("states", {})
+    if isinstance(states, list):
+        states = {s.get("asset_id"): s for s in states}
+
+    # Default coordinates for all 32 assets across India
+    defaults = {
+        "WH-001": (13.0827, 80.2707),   # Chennai Central
+        "WH-002": (12.9716, 77.5946),   # Bengaluru Hub
+        "WH-003": (19.0760, 72.8777),   # Mumbai DC
+        "WH-004": (28.7041, 77.1025),   # Delhi NCR
+        "TRUCK-001": (13.1500, 80.1800), # Chennai Corridor
+        "TRUCK-002": (13.5500, 79.4200), # Tirupati Route
+        "TRUCK-003": (12.9716, 77.5946), # Bengaluru
+        "TRUCK-004": (15.3647, 75.1240), # Hubli
+        "TRUCK-005": (19.0760, 72.8777), # Mumbai
+        "TRUCK-006": (18.5204, 73.8567), # Pune
+        "TRUCK-007": (23.0225, 72.5714), # Ahmedabad
+        "TRUCK-008": (28.7041, 77.1025), # Delhi
+        "DOOR-001": (13.0815, 80.2685),  # WH-001
+        "HUM-001": (13.0840, 80.2720),   # WH-001
+        "TEMP-001": (13.0835, 80.2690),  # WH-001
+        "TEMP-002": (13.0818, 80.2715),  # WH-001
+        "HUM-002": (19.0775, 72.8760),   # WH-003
+        "DOOR-002": (28.7055, 77.1010),  # WH-004
+        "VGW-101": (13.1520, 80.1820),   # On TRUCK-001
+        "VGW-102": (13.5520, 79.4220),   # On TRUCK-002
+        "VGW-103": (19.0780, 72.8790),   # On TRUCK-005
+        "VGW-104": (28.7060, 77.1040),   # On TRUCK-008
+        "API-GW-001": (28.6139, 77.2090),# North GW (Delhi)
+        "API-GW-002": (19.0800, 72.8900),# West GW (Mumbai)
+        "AUTH-001": (28.6120, 77.2070),  # Identity
+        "DB-001": (28.6100, 77.2050),    # PostgreSQL DB
+        "APP-001": (28.6150, 77.2110),   # Order Mgmt
+        "APP-002": (19.0820, 72.8920),   # Fleet Track
+        "SUP-001": (22.5726, 88.3639),   # Acme (Kolkata)
+        "SUP-002": (17.3850, 78.4867),   # NorthStar (Hyderabad)
+        "SUP-003": (21.1458, 79.0882),   # Titan Steel (Nagpur)
+        "SUP-004": (11.0168, 76.9558),   # GreenLeaf (Coimbatore)
+    }
+
+    out = []
+    for a in assets:
+        aid = a["asset_id"]
+        st = states.get(aid, {})
+        pos = st.get("position") or {}
+        meta_loc = (a.get("metadata") or {}).get("location") or {}
+
+        lat = pos.get("lat") or pos.get("latitude") or meta_loc.get("lat") or meta_loc.get("latitude")
+        lon = pos.get("lon") or pos.get("longitude") or meta_loc.get("lon") or meta_loc.get("longitude")
+
+        # Fallback to default coordinates
+        if (lat is None or lon is None) and aid in defaults:
+            lat, lon = defaults[aid]
+
+        if lat is None or lon is None:
+            continue
+
+        out.append({
+            "asset_id": aid,
+            "asset_type": a["asset_type"],
+            "name": a.get("name", aid),
+            "state": st.get("state") or a.get("state", "unknown"),
+            "health": st.get("health") or a.get("health", "unknown"),
+            "risk_score": risk_by_id.get(aid, 0),
+            "lat": float(lat),
+            "lon": float(lon),
+        })
+
+    return jsonify({"assets": out, "total": len(out)})
+
+
 # ---------------------------------------------------------------------------
 # Template Filters
 # ---------------------------------------------------------------------------

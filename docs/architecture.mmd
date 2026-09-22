@@ -1,0 +1,68 @@
+flowchart TB
+    subgraph L1 [Layer 1 — INGESTION]
+        L1A["REST API<br/>POST /api/telemetry · /api/events"]
+        L1B["MQTT Broker<br/>supply_chain/telemetry/+ · /events/+"]
+        L1C["External Sources<br/>Simulators · IoT Sensors · 3rd Party APIs"]
+    end
+
+    subgraph L2 [Layer 2 — VALIDATION & NORMALIZATION]
+        L2Box["Validation & Normalization<br/>validators.py (range checks + anomaly flags) · normalizer.py (metric rows + twin state)"]
+    end
+
+    subgraph L3 [Layer 3 — STORAGE]
+        L3Box[("PostgreSQL 16 — 20 Tables<br/>assets · telemetry · security_events · twin_states · detections · risk_scores · incidents · iocs · attack_stories · blast_radius · triage · ...")]
+    end
+
+    subgraph L4 [Layer 4 — CYBER DIGITAL TWIN]
+        L4Box["Cyber Digital Twin — NetworkX DiGraph<br/>32 nodes · 16 edges · live state · betweenness centrality · drift detection"]
+    end
+
+    subgraph L5 [Layer 5 — DETECTION & ANALYTICS]
+        L5A["Detection<br/>9 rules + ML (Isolation Forest, One-Class SVM)"]
+        L5B["Correlation<br/>6 rules → incidents"]
+        L5C["IOC + Enrichment (C8)<br/>VirusTotal · AbuseIPDB · OTX"]
+        L5D["Risk Scoring<br/>6 weighted components"]
+    end
+
+    subgraph L6 [Layer 6 — RECONSTRUCTION & IMPACT]
+        L6A["Attack Story Engine<br/>Timeline · MITRE tactics · Narrative"]
+        L6B["Blast Radius<br/>Topology traversal + decay weighting"]
+        L6C["Triage<br/>Auto TP/FP/FN/TN + precision/recall/F1"]
+    end
+
+    subgraph L7 [Layer 7 — PRESENTATION]
+        L7Box["FastAPI Swagger (:8000) + Flask Dashboard (:5000)<br/>100+ REST endpoints · Live monitoring console · 4 tabs"]
+    end
+
+    L1A --> |raw payload| L2Box
+    L1B --> |raw payload| L2Box
+    L1C --> |raw payload| L2Box
+    L2Box --> |normalized| L3Box
+    L3Box --> |read/reconcile| L4Box
+    L4Box --> |live state| L5A
+    L4Box --> |live state| L5B
+    L4Box --> |live state| L5C
+    L4Box --> |live state| L5D
+    L5A --> |findings| L6A
+    L5B --> |findings| L6A
+    L5C --> |findings| L6A
+    L5D --> |findings| L6B
+    L5A --> |findings| L6C
+    L6A --> |results| L7Box
+    L6B --> |results| L7Box
+    L6C --> |results| L7Box
+
+    style L4Box fill:#fdf2f2,stroke:#7a1a1a,stroke-width:3px,color:#7a1a1a
+    style L5C fill:#fff3cd,stroke:#856404,stroke-width:2px,color:#533f03
+    style L1A fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L1B fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L1C fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L2Box fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L3Box fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L5A fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L5B fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L5D fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L6A fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L6B fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L6C fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
+    style L7Box fill:#f4f6f9,stroke:#7a1a1a,stroke-width:1.5px
