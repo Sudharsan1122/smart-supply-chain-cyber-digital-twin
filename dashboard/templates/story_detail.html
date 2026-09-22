@@ -3,6 +3,7 @@
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/story_detail.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/blast_radius.css') }}">
 
 <div class="story-header">
     <a href="/stories" class="back-link">&larr; Back to Stories</a>
@@ -70,9 +71,9 @@
 </section>
 
 <!-- Blast Radius -->
-{% if blast.impacted_count %}
+{% if blast and blast.source_asset_id %}
 <section class="card">
-    <h2>💥 Blast Radius</h2>
+    <h2>💥 Blast Radius Visualization</h2>
     <div class="stat-row">
         <div class="stat"><span>Source</span><b class="mono">{{ blast.source_asset_id }}</b></div>
         <div class="stat"><span>Severity</span><b>{{ blast.severity }}</b></div>
@@ -80,16 +81,17 @@
         <div class="stat"><span>Total Impact</span><b>{{ blast.total_impact }}%</b></div>
     </div>
 
-    <div class="blast-container">
-        <svg id="blast-radius-svg" class="blast-svg"></svg>
-    </div>
+    <div id="blast-radius-graph" style="height: 400px; margin-top: 14px;"></div>
+
     <div class="blast-legend">
-        <span><span class="blast-legend-dot source"></span> Source Asset</span>
-        <span><span class="blast-legend-dot depth-1"></span> Depth 1 (Direct Impact)</span>
-        <span><span class="blast-legend-dot depth-2"></span> Depth 2 (Secondary Cascade)</span>
-        <span><span class="blast-legend-dot depth-3"></span> Depth 3+ (Downstream)</span>
+        <span><span class="blast-legend-dot source"></span> Source (Root)</span>
+        <span><span class="blast-legend-dot depth-1"></span> Depth 1</span>
+        <span><span class="blast-legend-dot depth-2"></span> Depth 2</span>
+        <span><span class="blast-legend-dot depth-3"></span> Depth 3</span>
+        <span><span class="blast-legend-dot depth-4"></span> Depth 4+</span>
     </div>
 
+    {% if blast.impacted %}
     <table class="tbl" style="margin-top: 16px;">
         <thead><tr><th>Asset</th><th>Depth</th><th>Impact Score</th></tr></thead>
         <tbody>
@@ -99,23 +101,26 @@
                 <td>{{ a.depth }}</td>
                 <td>
                     <span class="badge {% if a.impact_score >= 75 %}danger{% elif a.impact_score >= 50 %}warn{% elif a.impact_score >= 25 %}info{% else %}safe{% endif %}">
-                        {{ a.impact_score }}
+                        {{ a.impact_score }}%
                     </span>
                 </td>
             </tr>
         {% endfor %}
         </tbody>
     </table>
+    {% endif %}
 </section>
 {% endif %}
 
 <script src="{{ url_for('static', filename='js/story_timeline.js') }}"></script>
 <script src="{{ url_for('static', filename='js/blast_radius_viz.js') }}"></script>
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const blastData = {{ blast | tojson }};
-        if (window.renderBlastRadius && blastData && blastData.impacted_count) {
-            window.renderBlastRadius(blastData, "#blast-radius-svg");
+    document.addEventListener("DOMContentLoaded", () => {
+        const data = {{ blast | tojson }};
+        if (data && data.impacted && data.impacted.length > 0) {
+            renderBlastRadius("#blast-radius-graph", data);
+        } else if (data && data.source_asset_id) {
+            renderBlastRadius("#blast-radius-graph", data);
         }
     });
 </script>

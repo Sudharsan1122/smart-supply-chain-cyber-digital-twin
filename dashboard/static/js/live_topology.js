@@ -142,6 +142,30 @@ window.liveTopology = (function () {
             if (neighEl) {
                 neighEl.innerHTML = `Parents: <b>${parents}</b><br>Children: <b>${children}</b>`;
             }
+
+            // Inline Blast Radius Propagation
+            const blastEl = document.getElementById("panel-blast-section");
+            const blastGraph = document.getElementById("live-blast-radius-graph");
+            if (blastEl && blastGraph && window.renderBlastRadius) {
+                const apiBase = (window.DASHBOARD && window.DASHBOARD.apiUrl) || "http://127.0.0.1:8000";
+                fetch(`${apiBase}/api/blast-radius/compute`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ asset_id: d.asset_id, severity: "high", max_depth: 3, persist: false })
+                })
+                .then(r => r.ok ? r.json() : null)
+                .then(blastData => {
+                    if (blastData && blastData.impacted_count > 0) {
+                        blastEl.style.display = "block";
+                        window.renderBlastRadius("#live-blast-radius-graph", blastData);
+                    } else {
+                        blastEl.style.display = "none";
+                    }
+                })
+                .catch(() => {
+                    if (blastEl) blastEl.style.display = "none";
+                });
+            }
         });
     }
 

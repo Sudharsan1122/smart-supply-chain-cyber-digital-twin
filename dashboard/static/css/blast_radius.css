@@ -1,0 +1,204 @@
+/* blast_radius.css — Styling for D3 Force-Directed Blast Radius Visualization */
+
+.blast-wrapper {
+    position: relative;
+    width: 100%;
+    min-height: 400px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#blast-radius-graph {
+    position: relative;
+    width: 100%;
+    height: 400px;
+    min-height: 400px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.blast-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+}
+
+.blast-svg:active {
+    cursor: grabbing;
+}
+
+/* Links */
+.blast-link {
+    stroke: #30363d;
+    stroke-opacity: 0.85;
+    stroke-linecap: round;
+    transition: stroke 0.2s, stroke-width 0.2s;
+}
+
+.blast-link.highlighted {
+    stroke: #f85149;
+    stroke-width: 2.5px;
+    stroke-opacity: 1;
+}
+
+/* Nodes */
+.blast-node circle {
+    cursor: pointer;
+    transition: transform 0.15s ease, stroke-width 0.15s;
+}
+
+.blast-node:hover circle {
+    stroke-width: 3.5px !important;
+    filter: brightness(1.25);
+}
+
+.blast-node.source circle {
+    filter: drop-shadow(0 0 12px rgba(185, 28, 28, 0.85));
+    stroke: #ff4d4f;
+    stroke-width: 3px;
+}
+
+/* Node Labels */
+.blast-label {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    fill: #e6edf3;
+    pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 6px rgba(13, 17, 23, 0.9);
+}
+
+/* Legend */
+.blast-legend {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #8b949e;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 6px;
+}
+
+.blast-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.blast-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.blast-legend-dot.source { background: #b91c1c; box-shadow: 0 0 6px rgba(185, 28, 28, 0.8); }
+.blast-legend-dot.depth-1 { background: #dc6803; }
+.blast-legend-dot.depth-2 { background: #f0b429; }
+.blast-legend-dot.depth-3 { background: #2ea043; }
+.blast-legend-dot.depth-4 { background: #58a6ff; }
+
+/* Tooltip */
+.blast-tooltip {
+    position: absolute;
+    display: none;
+    background: rgba(22, 27, 34, 0.96);
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #c9d1d9;
+    pointer-events: none;
+    z-index: 1000;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    line-height: 1.45;
+}
+
+/* Click Detail Popup Modal */
+.blast-popup {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 280px;
+    background: #161b22;
+    border: 1px solid #388bfd;
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.7);
+    z-index: 100;
+    font-size: 12.5px;
+    color: #c9d1d9;
+    animation: blastFadeIn 0.2s ease-out;
+}
+
+@keyframes blastFadeIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.blast-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #30363d;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+}
+
+.blast-popup-title {
+    font-weight: 700;
+    font-size: 14px;
+    color: #f0f6fc;
+}
+
+.blast-popup-close {
+    background: transparent;
+    border: none;
+    color: #8b949e;
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+}
+
+.blast-popup-close:hover {
+    color: #f85149;
+}
+
+.blast-popup-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.blast-popup-label {
+    color: #8b949e;
+    font-size: 11.5px;
+}
+
+.blast-popup-val {
+    font-weight: 600;
+    color: #f0f6fc;
+}
+
+.blast-popup-path {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-top: 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #58a6ff;
+    word-break: break-all;
+}

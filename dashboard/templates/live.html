@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/blast_radius.css') }}">
 
 <!-- Row 1: 5 KPI Cards -->
 {% include "partials/kpi_cards.html" %}
@@ -209,6 +210,11 @@
         <div class="panel-label">Graph Hierarchy (Parents &bull; Children)</div>
         <div class="panel-value small mono panel-neighbors">—</div>
     </div>
+    <div class="panel-section" id="panel-blast-section" style="margin-top: 14px; border-top: 1px solid #30363d; padding-top: 10px; display: none;">
+        <div class="panel-label" style="margin-bottom: 6px; font-weight: bold; color: #f85149;">💥 Blast Radius Propagation</div>
+        <div id="live-blast-radius-graph" style="height: 220px; width: 100%; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; position: relative;"></div>
+    </div>
 </aside>
 
+<script src="{{ url_for('static', filename='js/blast_radius_viz.js') }}"></script>
 {% endblock %}
