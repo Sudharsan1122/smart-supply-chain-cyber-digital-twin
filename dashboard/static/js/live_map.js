@@ -401,7 +401,8 @@
     // ------------------------------------------------------------------
     async function loadPlayback(minutes = 30) {
         try {
-            const res = await fetch(`/live/playback?minutes=${minutes}`);
+            const clampedMins = Math.min(120, Math.max(1, parseInt(minutes, 10) || 30));
+            const res = await fetch(`/live/playback?minutes=${clampedMins}&step=10`);
             if (!res.ok) return;
             playbackData = await res.json();
             const slider = document.getElementById("time-slider");
@@ -431,12 +432,26 @@
             const pos = positions[idx];
             if (pos && markers[truckId] && isInIndia(pos.lat, pos.lon)) {
                 markers[truckId].setLatLng([pos.lat, pos.lon]);
+                if (lastAssetsById[truckId]) {
+                    lastAssetsById[truckId] = {
+                        ...lastAssetsById[truckId],
+                        lat: pos.lat,
+                        lon: pos.lon,
+                    };
+                    markers[truckId].setIcon(makeIcon(lastAssetsById[truckId]));
+                }
             }
             if (trails[truckId]) {
-                const slicePts = positions
-                    .slice(0, idx + 1)
-                    .filter(p => p && isInIndia(p.lat, p.lon))
-                    .map(p => [p.lat, p.lon]);
+                const slicePts = [];
+                for (let i = 0; i <= idx; i++) {
+                    const p = positions[i];
+                    if (!p || !isInIndia(p.lat, p.lon)) continue;
+                    const prev = slicePts[slicePts.length - 1];
+                    if (prev && (Math.abs(prev[0] - p.lat) > 1.0 || Math.abs(prev[1] - p.lon) > 1.0)) {
+                        slicePts.length = 0;
+                    }
+                    slicePts.push([p.lat, p.lon]);
+                }
                 trails[truckId].setLatLngs(slicePts);
             }
         });
@@ -448,26 +463,34 @@
         if (!playbackData || !playbackData.events) return;
         const curTime = new Date(ts).getTime();
         const recentEvents = playbackData.events.filter(e => {
-            const evTime = new Date(e.timestamp).getTime();
-            return Math.abs(evTime - curTime) < 15000;
+            const evTime = new Date(e.t || e.timestamp).getTime();
+            return Math.abs(evTime - curTime) < 60000;
         });
 
         recentEvents.forEach(ev => {
-            const m = markers[ev.asset_id];
-            if (m && m._icon) {
-                m._icon.classList.add("flash-red");
-                setTimeout(() => {
-                    if (m._icon) m._icon.classList.remove("flash-red");
-                }, 1500);
-            }
+            const assetId = ev.asset || ev.asset_id;
+            const targets = [assetId, ev.parent_asset].filter(Boolean);
+            targets.forEach(tid => {
+                const m = markers[tid];
+                const el = m ? (typeof m.getElement === "function" ? m.getElement() : m._icon) : null;
+                if (el) {
+                    el.classList.add("flash-red");
+                    setTimeout(() => {
+                        el.classList.remove("flash-red");
+                    }, 2000);
+                }
+            });
         });
 
         const banner = document.getElementById("playback-event-banner");
         if (banner) {
             if (recentEvents.length > 0) {
                 const latest = recentEvents[recentEvents.length - 1];
+                const evTs = new Date(latest.t || latest.timestamp).toLocaleTimeString();
+                const evAsset = latest.asset || latest.asset_id || "SYSTEM";
+                const evTitle = latest.title || latest.detail || latest.kind;
                 banner.style.display = "block";
-                banner.textContent = `⚡ [${new Date(latest.timestamp).toLocaleTimeString()}] ${latest.asset_id}: ${latest.detail} (${latest.severity})`;
+                banner.textContent = `⚡ [${evTs}] ${evAsset}: ${evTitle}`;
             } else {
                 banner.style.display = "none";
             }
@@ -492,7 +515,11 @@
                 isPlayingBack = true;
             }
             if (!playbackData || !playbackData.timestamps || !playbackData.timestamps.length) {
-                if (label) label.textContent = "No history";
+                if (label) label.textContent = "No data — run traffic generator first";
+                if (banner) {
+                    banner.style.display = "block";
+                    banner.textContent = "No data — run traffic generator first";
+                }
                 isPlayingBack = false;
                 return;
             }
@@ -511,7 +538,7 @@
                 currentIndex++;
                 slider.value = currentIndex;
                 applyPlaybackFrame(currentIndex);
-            }, 300);
+            }, 200); // 5 fps
         });
 
         pauseBtn.addEventListener("click", () => {
@@ -544,6 +571,11 @@
                 await loadPlayback(mins);
                 isPlayingBack = true;
             }
+            if (!playbackData || !playbackData.timestamps || !playbackData.timestamps.length) {
+                if (label) label.textContent = "No data — run traffic generator first";
+                isPlayingBack = false;
+                return;
+            }
             currentIndex = parseInt(e.target.value, 10) || 0;
             applyPlaybackFrame(currentIndex);
         });
@@ -560,8 +592,28 @@
     function boot() {
         initMap();
         initPlaybackControls();
-        fetchGeofences().then(() => {
-            refreshMap();
+        fetchGeofences().then(async () => {
+            await refreshMap();
+            const params = new URLSearchParams(window.location.search);
+            const pctParam = params.get("playback_pct");
+            if (pctParam !== null) {
+                const pct = Math.min(100, Math.max(0, parseInt(pctParam, 10) || 0));
+                await loadPlayback(30);
+                if (playbackData && playbackData.timestamps && playbackData.timestamps.length) {
+                    isPlayingBack = true;
+                    const maxIdx = playbackData.timestamps.length - 1;
+                    currentIndex = Math.round((pct / 100) * maxIdx);
+                    const slider = document.getElementById("time-slider");
+                    if (slider) slider.value = currentIndex;
+                    const playBtn = document.getElementById("play-btn");
+                    const pauseBtn = document.getElementById("pause-btn");
+                    if (playBtn && pauseBtn) {
+                        playBtn.style.display = "none";
+                        pauseBtn.style.display = "inline-block";
+                    }
+                    applyPlaybackFrame(currentIndex);
+                }
+            }
         });
         setInterval(refreshMap, REFRESH_MS);
 

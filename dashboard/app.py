@@ -356,10 +356,12 @@ def live_map_data():
 
 
 @app.route("/live/playback")
+@app.route("/live/timeline")
 def live_playback():
     """Return time-series of historical truck positions and security events for playback."""
     minutes = request.args.get("minutes", "30")
-    data = api_get(f"/api/analytics/playback?from_minutes_ago={minutes}") or {}
+    step = request.args.get("step", "15")
+    data = api_get(f"/api/analytics/playback?from_minutes_ago={minutes}&interval_seconds={step}") or {}
     return jsonify(data)
 
 
