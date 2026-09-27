@@ -9,6 +9,7 @@ RULE_TACTICS = {
     "RULE-004": "Initial Access", "RULE-005": "Collection",
     "RULE-006": "Credential Access", "RULE-007": "Persistence",
     "RULE-008": "Impact", "RULE-009": "Discovery",
+    "RULE-010": "Exfiltration",
 }
 INCIDENT_TACTICS = {"R001": "Impact", "R002": "Initial Access",
                     "R003": "Credential Access", "R004": "Command and Control",

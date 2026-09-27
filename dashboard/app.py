@@ -428,6 +428,13 @@ def live_weather_batch():
     return jsonify(out)
 
 
+@app.route("/live/geofences")
+def live_geofences():
+    """Return geofence zone definitions for all trucks."""
+    from geofencing.zones import GEOFENCES
+    return jsonify(GEOFENCES)
+
+
 # ---------------------------------------------------------------------------
 # Template Filters
 # ---------------------------------------------------------------------------

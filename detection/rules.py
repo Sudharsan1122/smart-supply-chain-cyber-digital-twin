@@ -161,3 +161,44 @@ def rule_port_scan(ctx: DetectionContext):
             evidence={"destinations": list(dests)[:10]},
         )]
     return []
+
+
+@register("RULE-010")
+def rule_geofence_breach(ctx: DetectionContext):
+    """Alert when a truck is outside its allowed region."""
+    if ctx.asset_type != "TRUCK" or ctx.payload_kind != "telemetry":
+        return []
+    gps = getattr(ctx.payload, "gps", None)
+    if gps is None:
+        return []
+
+    from geofencing.zones import GEOFENCES, haversine
+    zone = GEOFENCES.get(ctx.asset_id)
+    if zone is None:
+        return []
+
+    center_lat, center_lon = zone["center"]
+    distance = haversine(gps.latitude, gps.longitude, center_lat, center_lon)
+
+    # Outside red zone -> critical
+    if distance > zone["radius_km"]:
+        return [DetectionCandidate(
+            rule_id="RULE-010",
+            title=f"Geofence breach on {ctx.asset_id}",
+            severity="critical",
+            confidence=0.95,
+            description=f"Truck {distance:.0f} km from center, allowed {zone['radius_km']} km",
+            evidence={"distance_km": round(distance, 1), "allowed_km": zone["radius_km"]},
+        )]
+    # In buffer zone -> warning
+    if distance > zone["radius_km"] - zone["buffer_km"]:
+        return [DetectionCandidate(
+            rule_id="RULE-010",
+            title=f"Geofence near-limit on {ctx.asset_id}",
+            severity="medium",
+            confidence=0.7,
+            description=f"Truck {distance:.0f} km from center, near limit {zone['radius_km']} km",
+            evidence={"distance_km": round(distance, 1)},
+        )]
+    return []
+

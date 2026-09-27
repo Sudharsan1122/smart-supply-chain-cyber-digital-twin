@@ -15,6 +15,10 @@
     let weatherData = {};
     let showWeather = true;
 
+    // Geofence state
+    let geofenceDefs = {};
+    const geofences = {};
+
     // Timeline playback state
     let playbackData = null;
     let playbackTimer = null;
@@ -29,7 +33,7 @@
             center: INDIA_CENTER,
             zoom: ZOOM,
             zoomControl: true,
-            preferCanvas: true,
+            preferCanvas: false,
         });
 
         map.setView(INDIA_CENTER, ZOOM);
@@ -88,6 +92,69 @@
         return "safe";
     }
 
+    function haversineKm(lat1, lon1, lat2, lon2) {
+        const R = 6371.0;
+        const toRad = d => (d * Math.PI) / 180.0;
+        const phi1 = toRad(lat1);
+        const phi2 = toRad(lat2);
+        const dphi = toRad(lat2 - lat1);
+        const dlam = toRad(lon2 - lon1);
+        const a = Math.sin(dphi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlam / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(a));
+    }
+
+    function geofenceFor(assetId) {
+        return geofenceDefs[assetId] || null;
+    }
+
+    function geofenceStatus(asset) {
+        if (asset.asset_type !== "TRUCK") return { state: "ok", distanceKm: 0 };
+        const zone = geofenceFor(asset.asset_id);
+        if (!zone || !zone.center) return { state: "ok", distanceKm: 0 };
+        const dist = haversineKm(asset.lat, asset.lon, zone.center[0], zone.center[1]);
+        if (dist > zone.radius_km) {
+            return { state: "breach", distanceKm: dist, allowedKm: zone.radius_km };
+        }
+        if (dist > zone.radius_km - (zone.buffer_km || 0)) {
+            return { state: "warning", distanceKm: dist, allowedKm: zone.radius_km };
+        }
+        return { state: "ok", distanceKm: dist, allowedKm: zone.radius_km };
+    }
+
+    async function fetchGeofences() {
+        try {
+            const res = await fetch("/live/geofences");
+            if (!res.ok) return;
+            geofenceDefs = await res.json();
+        } catch (e) {
+            console.warn("Geofences fetch failed:", e);
+        }
+    }
+
+    function drawGeofences(data) {
+        (data.assets || []).forEach(asset => {
+            if (asset.asset_type !== "TRUCK") return;
+            const zone = geofenceFor(asset.asset_id);
+            if (!zone) return;
+
+            if (!geofences[asset.asset_id]) {
+                geofences[asset.asset_id] = L.circle(
+                    [zone.center[0], zone.center[1]],
+                    {
+                        radius: zone.radius_km * 1000,
+                        color: "#1f6feb",
+                        fillColor: "#58a6ff",
+                        weight: 2,
+                        opacity: 0.55,
+                        fillOpacity: 0.05,
+                        dashArray: "6 6",
+                        interactive: false,
+                    }
+                ).addTo(map);
+            }
+        });
+    }
+
     function weatherIcon(condition) {
         const iconMap = {
             "Clear": "☀️",
@@ -120,7 +187,13 @@
 
     function makeIcon(asset) {
         const emoji = emojiFor(asset.asset_type);
-        const cls = riskClass(asset.risk_score);
+        const gf = geofenceStatus(asset);
+        let cls = riskClass(asset.risk_score);
+        if (gf.state === "breach") {
+            cls = "danger";
+        } else if (gf.state === "warning" && cls !== "danger") {
+            cls = "warn";
+        }
         const w = weatherData[asset.asset_id];
         const temp = w ? (w.temp != null ? w.temp : w.temperature_c) : null;
         let weatherHtml = "";
@@ -155,6 +228,14 @@
             `;
         }
 
+        const gf = geofenceStatus(a);
+        let geofenceSection = "";
+        if (gf.state === "breach") {
+            geofenceSection = `<div class="map-popup-weather" style="color:#f85149;"><strong>🚨 Geofence Breach:</strong> ${Math.round(gf.distanceKm)} km from center (allowed ${gf.allowedKm} km)</div>`;
+        } else if (gf.state === "warning") {
+            geofenceSection = `<div class="map-popup-weather" style="color:#d29922;"><strong>⚠️ Geofence Buffer:</strong> ${Math.round(gf.distanceKm)} km from center (limit ${gf.allowedKm} km)</div>`;
+        }
+
         return `
             <div class="map-popup">
                 <div class="map-popup-id">${a.asset_id}</div>
@@ -164,6 +245,7 @@
                     <span class="badge state-${a.state}">${a.state}</span>
                     <span class="badge ${riskClass(a.risk_score)}">risk ${Number(a.risk_score).toFixed(1)}</span>
                 </div>
+                ${geofenceSection}
                 ${weatherSection}
                 <div class="map-popup-coords">${Number(a.lat).toFixed(4)}, ${Number(a.lon).toFixed(4)}</div>
             </div>
@@ -254,6 +336,8 @@
 
         // Filter out invalid coordinates
         const validAssets = (data.assets || []).filter(a => isInIndia(a.lat, a.lon));
+
+        drawGeofences({ assets: validAssets });
 
         const seen = new Set();
 
@@ -476,7 +560,9 @@
     function boot() {
         initMap();
         initPlaybackControls();
-        refreshMap();
+        fetchGeofences().then(() => {
+            refreshMap();
+        });
         setInterval(refreshMap, REFRESH_MS);
 
         // Fetch weather on load (non-blocking) and refresh every 15 minutes
