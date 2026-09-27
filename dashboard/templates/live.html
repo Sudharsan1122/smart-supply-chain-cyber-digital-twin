@@ -101,6 +101,20 @@
     </div>
     <p class="muted small" style="margin-bottom: 12px;">Real-time positions of trucks, warehouses, gateways, and sensors across India. Markers colored by risk score. Updates every 5 seconds.</p>
     <div id="map" style="height: 520px; border-radius: 8px;"></div>
+    <div class="playback-bar" id="playback-bar">
+        <button id="play-btn" class="btn playback-btn" title="Replay historical movements at 10x speed">▶ Play</button>
+        <button id="pause-btn" class="btn playback-btn" title="Pause playback">⏸ Pause</button>
+        <button id="stop-btn" class="btn playback-btn" title="Stop playback and restore live view">⏹ Live</button>
+        <span id="playback-start-label" class="mono small muted">--:--</span>
+        <input type="range" id="time-slider" min="0" max="100" value="100">
+        <span id="time-label" class="mono">LIVE</span>
+        <select id="playback-window">
+            <option value="30" selected>30 min</option>
+            <option value="60">60 min</option>
+            <option value="120">120 min</option>
+        </select>
+        <span id="playback-event-banner" class="playback-event-banner"></span>
+    </div>
     <div class="map-legend">
         <span><span class="dot safe"></span> Safe</span>
         <span><span class="dot info"></span> Low</span>

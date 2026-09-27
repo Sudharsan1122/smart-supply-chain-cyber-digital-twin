@@ -18,6 +18,16 @@ class OpenWeatherAdapter(BaseAdapter):
             r.raise_for_status()
             p = r.json()
         main = p.get("main", {})
-        return {"lat": lat, "lon": lon, "temperature_c": main.get("temp"),
-                "humidity_pct": main.get("humidity"), "city": p.get("name"),
-                "condition": (p.get("weather") or [{}])[0].get("main")}
+        weather0 = (p.get("weather") or [{}])[0]
+        wind = p.get("wind") or {}
+        return {
+            "lat": lat,
+            "lon": lon,
+            "temperature_c": main.get("temp"),
+            "humidity_pct": main.get("humidity"),
+            "city": p.get("name"),
+            "condition": weather0.get("main"),
+            "description": weather0.get("description"),
+            "wind_speed_ms": wind.get("speed"),
+            "wind_deg": wind.get("deg"),
+        }

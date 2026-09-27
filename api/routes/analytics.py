@@ -1,12 +1,15 @@
 """Analytics and timeline endpoints with dynamic window and filtering."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from database import models as m
 from database.db import get_db
+from digital_twin.graph import twin_graph
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -147,4 +150,160 @@ async def get_timeline(
             "assets": top_assets,
             "series": risk_series,
         },
+    }
+
+
+@router.get("/playback")
+async def playback(
+    from_minutes_ago: int = Query(default=30, ge=1, le=120),
+    interval_seconds: int = Query(default=60, ge=1, le=3600),
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Return time-series of bucketed truck positions, detections, and events for playback."""
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=from_minutes_ago)
+
+    # 1. Get all position telemetry in window
+    stmt = (
+        select(m.Telemetry)
+        .where(m.Telemetry.metric == "position")
+        .where(m.Telemetry.timestamp >= cutoff)
+        .order_by(m.Telemetry.timestamp.asc())
+    )
+    positions = (await session.execute(stmt)).scalars().all()
+
+    raw_by_truck: dict[str, list[tuple[datetime, float, float]]] = {}
+    all_ts: list[datetime] = []
+
+    for p in positions:
+        asset_code = twin_graph.asset_id_for(p.asset_id)
+        if not asset_code or not asset_code.startswith("TRUCK-"):
+            continue
+        payload = p.payload or {}
+        if "lat" not in payload or "lon" not in payload:
+            continue
+        lat = float(payload["lat"])
+        lon = float(payload["lon"])
+        # Filter out non-India coordinates
+        if not (6.0 <= lat <= 37.0 and 68.0 <= lon <= 98.0):
+            continue
+        raw_by_truck.setdefault(asset_code, []).append((p.timestamp, lat, lon))
+        all_ts.append(p.timestamp)
+
+    timestamps: list[str] = []
+    trucks: dict[str, list[dict[str, Any]]] = {}
+
+    if all_ts:
+        t_min = min(all_ts)
+        t_max = max(all_ts)
+        span_sec = max(1.0, (t_max - t_min).total_seconds())
+        # Adaptive bucket step: target up to ~90 frames, respecting interval_seconds upper bound
+        step_sec = max(2, min(interval_seconds, max(2, int(span_sec / 90))))
+
+        bucket_map: dict[int, datetime] = {}
+        truck_bucket_pos: dict[str, dict[int, tuple[float, float]]] = {
+            k: {} for k in raw_by_truck
+        }
+
+        for asset_code, pts in raw_by_truck.items():
+            for ts, lat, lon in pts:
+                b_key = int(ts.timestamp()) // step_sec
+                bucket_map[b_key] = ts
+                truck_bucket_pos[asset_code][b_key] = (lat, lon)
+
+        sorted_keys = sorted(bucket_map.keys())
+        timestamps = [bucket_map[k].isoformat() for k in sorted_keys]
+
+        for asset_code, pts in raw_by_truck.items():
+            aligned: list[dict[str, Any]] = []
+            last_lat, last_lon = pts[0][1], pts[0][2]
+            b_pos = truck_bucket_pos[asset_code]
+            for idx, k in enumerate(sorted_keys):
+                if k in b_pos:
+                    last_lat, last_lon = b_pos[k]
+                aligned.append({
+                    "t": timestamps[idx],
+                    "lat": round(last_lat, 6),
+                    "lon": round(last_lon, 6),
+                })
+            trucks[asset_code] = aligned
+
+    # 2. Get security events in window
+    stmt_ev = (
+        select(m.SecurityEvent)
+        .where(m.SecurityEvent.timestamp >= cutoff)
+        .order_by(m.SecurityEvent.timestamp.asc())
+    )
+    events_raw = (await session.execute(stmt_ev)).scalars().all()
+    events: list[dict[str, Any]] = []
+    for e in events_raw:
+        asset_code = twin_graph.asset_id_for(e.asset_id)
+        parents = twin_graph.direct_parents(asset_code) if asset_code else []
+        parent_truck = next((p for p in parents if p.startswith("TRUCK-")), None)
+        events.append({
+            "t": e.timestamp.isoformat(),
+            "kind": "event",
+            "asset": asset_code,
+            "parent_asset": parent_truck,
+            "severity": e.severity,
+            "title": f"{e.event_type} ({e.severity})",
+        })
+
+    # 3. Get detections in window
+    stmt_det = (
+        select(m.Detection)
+        .where(m.Detection.detected_at >= cutoff)
+        .order_by(m.Detection.detected_at.asc())
+    )
+    dets_raw = (await session.execute(stmt_det)).scalars().all()
+    for d in dets_raw:
+        asset_code = twin_graph.asset_id_for(d.asset_id)
+        parents = twin_graph.direct_parents(asset_code) if asset_code else []
+        parent_truck = next((p for p in parents if p.startswith("TRUCK-")), None)
+        events.append({
+            "t": d.detected_at.isoformat(),
+            "kind": "detection",
+            "asset": asset_code,
+            "parent_asset": parent_truck,
+            "severity": d.severity,
+            "title": f"{d.rule_id}: {d.description}",
+        })
+
+    # 4. Get high risk jumps in window
+    stmt_risk = (
+        select(m.RiskScore)
+        .where(m.RiskScore.scored_at >= cutoff)
+        .where(m.RiskScore.score >= 50.0)
+        .order_by(m.RiskScore.scored_at.asc())
+        .limit(200)
+    )
+    risks_raw = (await session.execute(stmt_risk)).scalars().all()
+    seen_risk_buckets: set[tuple[str, int]] = set()
+    for r in risks_raw:
+        asset_code = twin_graph.asset_id_for(r.asset_id)
+        if not asset_code:
+            continue
+        b_min = int(r.scored_at.timestamp()) // 60
+        if (asset_code, b_min) in seen_risk_buckets:
+            continue
+        seen_risk_buckets.add((asset_code, b_min))
+        parents = twin_graph.direct_parents(asset_code)
+        parent_truck = next((p for p in parents if p.startswith("TRUCK-")), None)
+        events.append({
+            "t": r.scored_at.isoformat(),
+            "kind": "risk_jump",
+            "asset": asset_code,
+            "parent_asset": parent_truck,
+            "score": round(float(r.score), 1),
+            "title": f"Risk score {round(float(r.score), 1)} on {asset_code}",
+        })
+
+    events.sort(key=lambda x: x["t"])
+
+    return {
+        "window_from": cutoff.isoformat(),
+        "window_to": now.isoformat(),
+        "timestamps": timestamps,
+        "trucks": trucks,
+        "events": events,
     }
