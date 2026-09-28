@@ -1,4 +1,4 @@
-﻿services:
+services:
   postgres:
     image: postgres:16-alpine
     container_name: sscdt-postgres
@@ -51,6 +51,8 @@
         condition: service_healthy
       mosquitto:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -77,6 +79,8 @@
     depends_on:
       api:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       API_URL: http://api:8000
       DASHBOARD_PORT: 5000

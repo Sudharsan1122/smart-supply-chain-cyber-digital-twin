@@ -14,9 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd --create-home --shell /bin/bash app
 WORKDIR /app
 
-RUN pip install --no-cache-dir flask==3.0.3 requests==2.32.3 gunicorn==22.0.0
+RUN pip install --no-cache-dir flask==3.0.3 requests==2.32.3 gunicorn==22.0.0 \
+    httpx pydantic pydantic-settings python-dotenv
 
 COPY --chown=app:app dashboard/ /app/dashboard/
+COPY --chown=app:app api_sources/ /app/api_sources/
+COPY --chown=app:app config/ /app/config/
+COPY --chown=app:app geofencing/ /app/geofencing/
 
 USER app
 
