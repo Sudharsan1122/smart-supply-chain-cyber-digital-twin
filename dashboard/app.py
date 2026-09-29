@@ -443,6 +443,12 @@ def live_ditto_status():
     return jsonify(api_get("/api/ditto/status") or {"ditto_reachable": False})
 
 
+@app.route("/live/ml/explain/<asset_id>")
+def live_ml_explain(asset_id: str):
+    """Return SHAP feature attributions for an asset's ML anomaly score."""
+    return jsonify(api_get(f"/api/ml/explain/{asset_id}", timeout=8.0) or {"asset_id": asset_id, "top_features": []})
+
+
 @app.context_processor
 def inject_ditto():
     status = api_get("/api/ditto/status", timeout=1.5) or {}

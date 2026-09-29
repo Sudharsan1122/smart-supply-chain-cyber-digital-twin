@@ -12,6 +12,8 @@ from digital_twin.graph import twin_graph
 from digital_twin.state_manager import twin_state
 from ingestion.ditto_sync import ditto_sync_loop
 from ingestion.mqtt_client import mqtt_bridge
+from api_sources.wazuh_adapter import wazuh_sync_loop
+from api_sources.suricata_adapter import suricata_sync_loop
 
 logger = logging.getLogger(__name__)
 
@@ -74,24 +76,21 @@ async def lifespan(app: FastAPI):
     ditto_task = asyncio.create_task(ditto_sync_loop())
     print("   [OK] Ditto sync every 5s")
 
+    wazuh_task = asyncio.create_task(wazuh_sync_loop())
+    print("   [OK] Wazuh adapter sync every 30s")
+
+    suricata_task = asyncio.create_task(suricata_sync_loop())
+    print("   [OK] Suricata eve.json sync every 15s")
+
     yield
 
     print("Shutting down...")
-    risk_task.cancel()
-    triage_task.cancel()
-    ditto_task.cancel()
-    try:
-        await risk_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await triage_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await ditto_task
-    except asyncio.CancelledError:
-        pass
+    for task in (risk_task, triage_task, ditto_task, wazuh_task, suricata_task):
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     mqtt_bridge.stop()
     await dispose_engine()
 

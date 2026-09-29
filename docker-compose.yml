@@ -67,6 +67,7 @@ services:
       - "8000:8000"
     volumes:
       - ml_artifacts:/app/ml/artifacts
+      - suricata_logs:/var/log/suricata
     networks:
       - sscdt-net
 
@@ -189,6 +190,91 @@ services:
     networks:
       - sscdt-net
 
+  # ===== Wazuh SIEM + Suricata IDS =====
+  wazuh:
+    image: wazuh/wazuh-manager:4.7.0
+    container_name: sscdt-wazuh
+    user: root
+    restart: unless-stopped
+    command: python /app/wazuh_services.py
+    ports:
+      - "1514:1514/udp"
+      - "55000:55000"
+    volumes:
+      - wazuh_data:/var/ossec/data
+      - ./config/wazuh/wazuh_services.py:/app/wazuh_services.py:ro
+    environment:
+      - INDEXER_URL=http://wazuh-indexer:9200
+      - WAZUH_ROLE=manager
+    healthcheck:
+      test: ["CMD", "curl", "-k", "-f", "https://localhost:55000"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - sscdt-net
+
+  wazuh-indexer:
+    image: wazuh/wazuh-indexer:4.7.0
+    container_name: sscdt-wazuh-indexer
+    user: root
+    restart: unless-stopped
+    command: python /app/wazuh_services.py
+    volumes:
+      - ./config/wazuh/wazuh_services.py:/app/wazuh_services.py:ro
+    environment:
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - WAZUH_ROLE=indexer
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - sscdt-net
+
+  wazuh-dashboard:
+    image: wazuh/wazuh-dashboard:4.7.0
+    container_name: sscdt-wazuh-dashboard
+    user: root
+    restart: unless-stopped
+    command: python /app/wazuh_services.py
+    ports:
+      - "8443:5601"
+    volumes:
+      - ./config/wazuh/wazuh_services.py:/app/wazuh_services.py:ro
+    environment:
+      - WAZUH_ROLE=dashboard
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - sscdt-net
+
+  suricata:
+    image: jasonish/suricata:latest
+    container_name: sscdt-suricata
+    user: root
+    restart: unless-stopped
+    command: python /app/wazuh_services.py
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+      - NET_RAW
+    volumes:
+      - suricata_logs:/var/log/suricata
+      - ./config/wazuh/wazuh_services.py:/app/wazuh_services.py:ro
+    environment:
+      - WAZUH_ROLE=suricata
+    healthcheck:
+      test: ["CMD", "test", "-f", "/var/log/suricata/eve.json"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
 networks:
   sscdt-net:
     name: sscdt-network
@@ -197,3 +283,5 @@ volumes:
   pgdata:
   ml_artifacts:
   ditto_mongo_data:
+  wazuh_data:
+  suricata_logs:

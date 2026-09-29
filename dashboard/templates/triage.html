@@ -71,6 +71,118 @@
 
 <script src="{{ url_for('static', filename='js/triage_charts.js') }}"></script>
 
+<!-- Explainable AI (SHAP) Panel -->
+<section class="card" id="xai-shap-panel">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+            <h2>🧠 Explainable AI (SHAP) — ML Anomaly Feature Attribution</h2>
+            <span class="muted small">KernelExplainer Shapley values (&phi;<sub>i</sub>) explaining Isolation Forest anomaly decisions</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <label for="xai-asset-select" class="small muted">Inspect Asset:</label>
+            <select id="xai-asset-select" style="background:#0d1117; color:#e6edf3; border:1px solid #30363d; border-radius:6px; padding:5px 10px; font-family:monospace;">
+                <option value="TRUCK-001" selected>TRUCK-001 (Reefer 001)</option>
+                <option value="VGW-101">VGW-101 (Vehicle Gateway 001)</option>
+                <option value="TRUCK-002">TRUCK-002 (Reefer 002)</option>
+                <option value="TRUCK-005">TRUCK-005 (Reefer 005)</option>
+                <option value="WH-001">WH-001 (Chennai Central)</option>
+                <option value="AUTH-001">AUTH-001 (Identity Server)</option>
+                <option value="API-GW-001">API-GW-001 (North Gateway)</option>
+                <option value="DB-001">DB-001 (PostgreSQL Primary)</option>
+            </select>
+            <button id="xai-refresh-btn" class="btn-primary" style="padding:5px 12px; font-size:12px;">Compute SHAP</button>
+        </div>
+    </div>
+    <div class="grid-2" style="margin-top:10px;">
+        <div style="height:220px; position:relative;">
+            <canvas id="shapBarChart"></canvas>
+        </div>
+        <div>
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th>Feature Name</th>
+                        <th>Observed Value</th>
+                        <th>SHAP Value (&phi;<sub>i</sub>)</th>
+                        <th>Impact on Anomaly</th>
+                    </tr>
+                </thead>
+                <tbody id="shap-table-body">
+                    <tr><td colspan="4" class="muted">Computing SHAP attributions...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<script>
+(function() {
+    let shapChart = null;
+    async function loadShap(assetId) {
+        const tbody = document.getElementById("shap-table-body");
+        try {
+            const res = await fetch(`/live/ml/explain/${encodeURIComponent(assetId)}`);
+            const data = await res.json();
+            const feats = data.top_features || [];
+            if (!feats.length) {
+                tbody.innerHTML = `<tr><td colspan="4" class="muted">No SHAP features returned for ${assetId}.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = feats.map(f => {
+                const isInc = f.impact === "increases";
+                const badgeCls = isInc ? "sev-high" : "safe";
+                const arrow = isInc ? "▲ Increases Risk" : "▼ Decreases Risk";
+                const sign = f.shap_value >= 0 ? "+" : "";
+                return `
+                    <tr>
+                        <td class="mono small" style="color:#58a6ff;">${f.name}</td>
+                        <td class="mono small">${Number(f.value).toFixed(3)}</td>
+                        <td class="mono small" style="font-weight:700; color:${isInc ? '#f85149' : '#3fb950'};">${sign}${Number(f.shap_value).toFixed(5)}</td>
+                        <td><span class="badge ${badgeCls}">${arrow}</span></td>
+                    </tr>
+                `;
+            }).join("");
+
+            const ctx = document.getElementById("shapBarChart");
+            if (ctx && window.Chart) {
+                const labels = feats.map(f => f.name);
+                const vals = feats.map(f => Number(f.shap_value));
+                const colors = feats.map(f => f.impact === "increases" ? "rgba(248, 81, 73, 0.8)" : "rgba(63, 185, 80, 0.8)");
+                if (shapChart) shapChart.destroy();
+                shapChart = new Chart(ctx, {
+                    type: "bar",
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: `SHAP Contribution (${assetId})`,
+                            data: vals,
+                            backgroundColor: colors,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        indexAxis: "y",
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: "#c9d1d9" } } },
+                        scales: {
+                            x: { ticks: { color: "#8b949e" }, grid: { color: "#21262d" } },
+                            y: { ticks: { color: "#e6edf3", font: { family: "monospace", size: 11 } }, grid: { display: false } }
+                        }
+                    }
+                });
+            }
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="4" class="muted">Failed to load SHAP explanation: ${err}</td></tr>`;
+        }
+    }
+    const sel = document.getElementById("xai-asset-select");
+    const btn = document.getElementById("xai-refresh-btn");
+    if (sel) sel.addEventListener("change", () => loadShap(sel.value));
+    if (btn) btn.addEventListener("click", () => loadShap(sel.value));
+    loadShap(sel ? sel.value : "TRUCK-001");
+})();
+</script>
 
 <section class="card">
     <div class="card-header">

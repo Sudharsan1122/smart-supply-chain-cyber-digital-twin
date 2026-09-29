@@ -11,6 +11,7 @@ from api.routes.ditto import router as ditto_router
 from api.routes.events import router as events_router
 from api.routes.health import router as health_router
 from api.routes.iocs import router as iocs_router
+from api.routes.ml import router as ml_router
 from api.routes.mqtt import router as mqtt_router
 from api.routes.risk import router as risk_router
 from api.routes.sources import router as sources_router
@@ -24,6 +25,7 @@ api_router.include_router(health_router, tags=["health"])
 api_router.include_router(analytics_router)
 api_router.include_router(twin_router)
 api_router.include_router(ditto_router)
+api_router.include_router(ml_router)
 api_router.include_router(telemetry_router)
 api_router.include_router(events_router)
 api_router.include_router(assets_router)
