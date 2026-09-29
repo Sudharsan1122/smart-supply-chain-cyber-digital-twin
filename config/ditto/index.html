@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eclipse Ditto — Digital Twin Explorer (sscdt)</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --panel: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent: #3fb950;
+            --ditto: #2ea043;
+            --blue: #58a6ff;
+            --warn: #d29922;
+            --danger: #f85149;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            padding: 20px 28px;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .brand-logo {
+            background: linear-gradient(135deg, #1f6feb, #2ea043);
+            color: #fff;
+            font-weight: 800;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        .brand h1 { font-size: 20px; font-weight: 700; }
+        .brand p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .stats-bar {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+        }
+        .stat-pill {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 13px;
+        }
+        .stat-pill strong { color: var(--blue); font-family: ui-monospace, monospace; font-size: 15px; }
+        .layout {
+            display: grid;
+            grid-template-columns: 1.4fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .card-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .search-input {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            width: 240px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+        th, td {
+            text-align: left;
+            padding: 9px 14px;
+            border-bottom: 1px solid #21262d;
+        }
+        th {
+            color: var(--muted);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            background: #12161c;
+        }
+        tr.thing-row { cursor: pointer; transition: background 0.12s; }
+        tr.thing-row:hover, tr.thing-row.active { background: #1f2937; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-type { background: #1f2937; color: #93c5fd; border: 1px solid #374151; }
+        .badge-ok { background: rgba(46, 160, 67, 0.2); color: #3fb950; }
+        .badge-warn { background: rgba(210, 153, 34, 0.2); color: #d29922; }
+        .badge-danger { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+        pre {
+            padding: 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px;
+            color: #a5d6ff;
+            overflow: auto;
+            max-height: 700px;
+            line-height: 1.45;
+        }
+        .table-wrap { max-height: 700px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+<header>
+    <div class="brand">
+        <div class="brand-logo">Eclipse Ditto™</div>
+        <div>
+            <h1>Eclipse Ditto Digital Twin Explorer</h1>
+            <p>Namespace: <code class="mono">sscdt</code> &bull; REST API v2 (<code class="mono">/api/2/things</code>)</p>
+        </div>
+    </div>
+    <div class="stats-bar">
+        <div class="stat-pill">Things Synced: <strong id="total-count">0</strong></div>
+        <div class="stat-pill">Namespace: <strong>sscdt</strong></div>
+        <div class="stat-pill">Gateway Status: <strong id="gw-status" style="color:#3fb950;">CONNECTED</strong></div>
+    </div>
+</header>
+
+<div class="layout">
+    <div class="card">
+        <div class="card-header">
+            <span>Registered Digital Twin Things (<span id="shown-count">0</span>)</span>
+            <input type="text" id="filter-box" class="search-input" placeholder="Filter by thingId, type, state...">
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Thing ID</th>
+                        <th>Asset Type</th>
+                        <th>Name</th>
+                        <th>Feature: State</th>
+                        <th>Feature: Health</th>
+                        <th>Feature: Risk</th>
+                    </tr>
+                </thead>
+                <tbody id="things-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span>Thing JSON Inspector (<code class="mono" id="selected-id">sscdt:VGW-101</code>)</span>
+            <span style="font-size:11px; color:var(--muted);">Auto-refreshes every 5s</span>
+        </div>
+        <pre id="json-viewer">Loading Thing from Eclipse Ditto /api/2/things...</pre>
+    </div>
+</div>
+
+<script>
+    let allThings = [];
+    let selectedThingId = null;
+
+    function riskBadge(score) {
+        const s = Number(score || 0);
+        const cls = s >= 75 ? "badge-danger" : (s >= 45 ? "badge-warn" : "badge-ok");
+        return `<span class="badge ${cls} mono">${s.toFixed(1)}</span>`;
+    }
+
+    function renderTable() {
+        const q = (document.getElementById("filter-box").value || "").toLowerCase();
+        const filtered = allThings.filter(t => {
+            const hay = `${t.thingId} ${t.attributes?.asset_type || ""} ${t.attributes?.name || ""} ${t.features?.state?.properties?.value || ""}`.toLowerCase();
+            return hay.includes(q);
+        });
+
+        document.getElementById("total-count").textContent = allThings.length;
+        document.getElementById("shown-count").textContent = filtered.length;
+
+        const tbody = document.getElementById("things-tbody");
+        tbody.innerHTML = filtered.map(t => {
+            const attr = t.attributes || {};
+            const st = t.features?.state?.properties || {};
+            const risk = t.features?.risk?.properties?.score ?? 0;
+            const activeCls = t.thingId === selectedThingId ? "active" : "";
+            return `
+                <tr class="thing-row ${activeCls}" onclick="selectThing('${t.thingId}')">
+                    <td class="mono" style="color:#58a6ff; font-weight:600;">${t.thingId}</td>
+                    <td><span class="badge badge-type mono">${attr.asset_type || "-"}</span></td>
+                    <td>${attr.name || "-"}</td>
+                    <td class="mono">${st.value || "unknown"}</td>
+                    <td class="mono">${st.health || "unknown"}</td>
+                    <td>${riskBadge(risk)}</td>
+                </tr>
+            `;
+        }).join("");
+    }
+
+    function selectThing(thingId) {
+        selectedThingId = thingId;
+        document.getElementById("selected-id").textContent = thingId;
+        const found = allThings.find(t => t.thingId === thingId);
+        if (found) {
+            document.getElementById("json-viewer").textContent = JSON.stringify(found, null, 2);
+        }
+        renderTable();
+    }
+
+    async function loadThings() {
+        try {
+            const res = await fetch("/api/2/search/things?option=size(200)");
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const data = await res.json();
+            allThings = (data.items || []).sort((a, b) => a.thingId.localeCompare(b.thingId));
+            document.getElementById("gw-status").textContent = "HEALTHY (HTTP 200)";
+            document.getElementById("gw-status").style.color = "#3fb950";
+            if (!selectedThingId && allThings.length > 0) {
+                const params = new URLSearchParams(window.location.search);
+                selectedThingId = params.get("select") || "sscdt:VGW-101";
+            }
+            if (selectedThingId) {
+                const found = allThings.find(t => t.thingId === selectedThingId) || allThings[0];
+                if (found) {
+                    document.getElementById("selected-id").textContent = found.thingId;
+                    document.getElementById("json-viewer").textContent = JSON.stringify(found, null, 2);
+                }
+            }
+            renderTable();
+        } catch (e) {
+            document.getElementById("gw-status").textContent = "BOOTING...";
+            document.getElementById("gw-status").style.color = "#d29922";
+        }
+    }
+
+    document.getElementById("filter-box").addEventListener("input", renderTable);
+    loadThings();
+    setInterval(loadThings, 5000);
+</script>
+</body>
+</html>

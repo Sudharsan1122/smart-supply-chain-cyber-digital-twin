@@ -25,12 +25,15 @@ async def readiness_check():
     db_connected = await check_database_connection()
     mqtt_connected = mqtt_bridge.connected
     from digital_twin.graph import twin_graph
+    from api_sources.ditto_adapter import ditto_adapter
     twin_ready = twin_graph.size > 0
+    ditto_ok = await ditto_adapter.health()
 
     checks = {
         "database": "connected" if db_connected else "disconnected",
         "mqtt": "connected" if mqtt_connected else "disconnected",
         "twin": "ready" if twin_ready else "empty",
+        "ditto": "connected" if ditto_ok else "disconnected",
     }
     return {
         "ready": db_connected and twin_ready,

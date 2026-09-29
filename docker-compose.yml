@@ -61,6 +61,7 @@ services:
       DB_PASSWORD: postgres
       MQTT_BROKER_HOST: mosquitto
       MQTT_BROKER_PORT: 1883
+      DITTO_URL: http://ditto-nginx/api/2
       ENVIRONMENT: PRODUCTION
     ports:
       - "8000:8000"
@@ -90,6 +91,104 @@ services:
     networks:
       - sscdt-net
 
+  # ===== Eclipse Ditto Digital Twin Framework =====
+  ditto-mongodb:
+    image: mongo:6
+    container_name: sscdt-ditto-mongodb
+    restart: unless-stopped
+    command: mongod --storageEngine wiredTiger --noscripting
+    volumes:
+      - ditto_mongo_data:/data/db
+    networks:
+      sscdt-net:
+        aliases:
+          - mongodb
+
+  ditto-policies:
+    image: docker.io/eclipse/ditto-policies:latest
+    container_name: sscdt-ditto-policies
+    restart: unless-stopped
+    environment:
+      - BIND_HOSTNAME=0.0.0.0
+      - INSTANCE_INDEX=1
+      - MONGO_DB_HOSTNAME=ditto-mongodb
+      - DITTO_MONGO_URI=mongodb://ditto-mongodb:27017/policies
+      - JAVA_TOOL_OPTIONS=-XX:ActiveProcessorCount=2 -XX:+ExitOnOutOfMemoryError -XX:+UseContainerSupport -XX:+UseStringDeduplication -Xss512k -XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:MaxGCPauseMillis=150 -Dpekko.coordinated-shutdown.exit-jvm=on -Dpekko.cluster.shutdown-after-unsuccessful-join-seed-nodes=180s -Dpekko.cluster.failure-detector.threshold=15.0 -Dpekko.cluster.failure-detector.expected-response-after=10s -Dpekko.cluster.failure-detector.acceptable-heartbeat-pause=20s -Dpekko.cluster.downing-provider-class=
+    depends_on:
+      - ditto-mongodb
+    networks:
+      sscdt-net:
+        aliases:
+          - ditto-cluster
+
+  ditto-things:
+    image: docker.io/eclipse/ditto-things:latest
+    container_name: sscdt-ditto-things
+    restart: unless-stopped
+    environment:
+      - BIND_HOSTNAME=0.0.0.0
+      - INSTANCE_INDEX=1
+      - MONGO_DB_HOSTNAME=ditto-mongodb
+      - DITTO_MONGO_URI=mongodb://ditto-mongodb:27017/things
+      - JAVA_TOOL_OPTIONS=-XX:ActiveProcessorCount=2 -XX:+ExitOnOutOfMemoryError -XX:+UseContainerSupport -XX:+UseStringDeduplication -Xss512k -XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:MaxGCPauseMillis=150 -Dpekko.coordinated-shutdown.exit-jvm=on -Dpekko.cluster.shutdown-after-unsuccessful-join-seed-nodes=180s -Dpekko.cluster.failure-detector.threshold=15.0 -Dpekko.cluster.failure-detector.expected-response-after=10s -Dpekko.cluster.failure-detector.acceptable-heartbeat-pause=20s -Dpekko.cluster.downing-provider-class=
+    depends_on:
+      - ditto-mongodb
+      - ditto-policies
+    networks:
+      sscdt-net:
+        aliases:
+          - ditto-cluster
+
+  ditto-things-search:
+    image: docker.io/eclipse/ditto-things-search:latest
+    container_name: sscdt-ditto-things-search
+    restart: unless-stopped
+    environment:
+      - BIND_HOSTNAME=0.0.0.0
+      - INSTANCE_INDEX=1
+      - MONGO_DB_HOSTNAME=ditto-mongodb
+      - DITTO_MONGO_URI=mongodb://ditto-mongodb:27017/things-search
+      - JAVA_TOOL_OPTIONS=-XX:ActiveProcessorCount=2 -XX:+ExitOnOutOfMemoryError -XX:+UseContainerSupport -XX:+UseStringDeduplication -Xss512k -XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:MaxGCPauseMillis=150 -Dpekko.coordinated-shutdown.exit-jvm=on -Dpekko.cluster.shutdown-after-unsuccessful-join-seed-nodes=180s -Dpekko.cluster.failure-detector.threshold=15.0 -Dpekko.cluster.failure-detector.expected-response-after=10s -Dpekko.cluster.failure-detector.acceptable-heartbeat-pause=20s -Dpekko.cluster.downing-provider-class=
+    depends_on:
+      - ditto-mongodb
+      - ditto-policies
+    networks:
+      sscdt-net:
+        aliases:
+          - ditto-cluster
+
+  ditto-gateway:
+    image: docker.io/eclipse/ditto-gateway:latest
+    container_name: sscdt-ditto-gateway
+    restart: unless-stopped
+    environment:
+      - BIND_HOSTNAME=0.0.0.0
+      - INSTANCE_INDEX=1
+      - ENABLE_PRE_AUTHENTICATION=true
+      - JAVA_TOOL_OPTIONS=-XX:ActiveProcessorCount=2 -XX:+ExitOnOutOfMemoryError -XX:+UseContainerSupport -XX:+UseStringDeduplication -Xss512k -XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:MaxGCPauseMillis=150 -Dpekko.coordinated-shutdown.exit-jvm=on -Dpekko.cluster.shutdown-after-unsuccessful-join-seed-nodes=180s -Dpekko.cluster.failure-detector.threshold=15.0 -Dpekko.cluster.failure-detector.expected-response-after=10s -Dpekko.cluster.failure-detector.acceptable-heartbeat-pause=20s -Dpekko.cluster.downing-provider-class=
+    depends_on:
+      - ditto-policies
+      - ditto-things
+      - ditto-things-search
+    networks:
+      sscdt-net:
+        aliases:
+          - ditto-cluster
+
+  ditto-nginx:
+    image: nginx:1.27-alpine
+    container_name: sscdt-ditto-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./config/ditto/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/ditto/index.html:/etc/nginx/html/index.html:ro
+    depends_on:
+      - ditto-gateway
+    networks:
+      - sscdt-net
+
 networks:
   sscdt-net:
     name: sscdt-network
@@ -97,3 +196,4 @@ networks:
 volumes:
   pgdata:
   ml_artifacts:
+  ditto_mongo_data:

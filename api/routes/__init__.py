@@ -7,6 +7,7 @@ from api.routes.attack import router as attack_router
 from api.routes.attack_stories import router as attack_stories_router
 from api.routes.blast_radius import router as blast_radius_router
 from api.routes.detections import router as detections_router
+from api.routes.ditto import router as ditto_router
 from api.routes.events import router as events_router
 from api.routes.health import router as health_router
 from api.routes.iocs import router as iocs_router
@@ -22,6 +23,7 @@ api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(analytics_router)
 api_router.include_router(twin_router)
+api_router.include_router(ditto_router)
 api_router.include_router(telemetry_router)
 api_router.include_router(events_router)
 api_router.include_router(assets_router)

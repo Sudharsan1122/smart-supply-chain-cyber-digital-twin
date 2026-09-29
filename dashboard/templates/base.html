@@ -27,6 +27,9 @@
         <a href="/triage" class="{% if active == 'triage' %}active{% endif %}" data-tab="triage">Triage</a>
     </nav>
     <div class="status">
+        <a href="http://localhost:8080" target="_blank" id="ditto-badge" class="ditto-badge {% if ditto_status and ditto_status.ditto_reachable %}connected{% endif %}" title="Open Eclipse Ditto Digital Twin Explorer (http://localhost:8080)">
+            <span class="dot"></span> Powered by Eclipse Ditto
+        </a>
         <span class="live-badge" id="live-badge"><span class="dot"></span>LIVE (3s)</span>
         <button id="download-report" class="btn-primary" title="Download current dashboard state as JSON">Download Report</button>
     </div>
@@ -35,7 +38,7 @@
     {% block content %}{% endblock %}
 </main>
 <footer class="footer">
-    <span>Backend API: <code>{{ api_url }}</code> &bull; Real-time Digital Twin Engine</span>
+    <span>Backend API: <code>{{ api_url }}</code> &bull; <a href="http://localhost:8080" target="_blank" style="color:#58a6ff; text-decoration:none;">Eclipse Ditto Digital Twin API (<code>http://localhost:8080/api/2/things</code>)</a></span>
 </footer>
 
 <script>

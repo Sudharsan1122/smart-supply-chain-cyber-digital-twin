@@ -298,3 +298,31 @@ code, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 
 }
 .btn-primary:hover { background: #388bfd; }
 .btn-primary:disabled { opacity: 0.6; cursor: wait; }
+
+/* Eclipse Ditto Badge */
+.ditto-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #58a6ff;
+    background: rgba(31, 111, 235, 0.14);
+    border: 1px solid rgba(88, 166, 255, 0.4);
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+}
+.ditto-badge:hover {
+    background: rgba(31, 111, 235, 0.25);
+    border-color: #58a6ff;
+}
+.ditto-badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #3fb950;
+    box-shadow: 0 0 6px #3fb950;
+}
+

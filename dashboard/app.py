@@ -437,6 +437,18 @@ def live_geofences():
     return jsonify(GEOFENCES)
 
 
+@app.route("/live/ditto-status")
+def live_ditto_status():
+    """Return Eclipse Ditto integration status."""
+    return jsonify(api_get("/api/ditto/status") or {"ditto_reachable": False})
+
+
+@app.context_processor
+def inject_ditto():
+    status = api_get("/api/ditto/status", timeout=1.5) or {}
+    return {"ditto_status": status}
+
+
 # ---------------------------------------------------------------------------
 # Template Filters
 # ---------------------------------------------------------------------------

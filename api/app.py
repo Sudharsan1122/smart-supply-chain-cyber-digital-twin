@@ -10,6 +10,7 @@ from config.settings import settings
 from database.db import AsyncSessionLocal, check_database_connection, dispose_engine
 from digital_twin.graph import twin_graph
 from digital_twin.state_manager import twin_state
+from ingestion.ditto_sync import ditto_sync_loop
 from ingestion.mqtt_client import mqtt_bridge
 
 logger = logging.getLogger(__name__)
@@ -70,17 +71,25 @@ async def lifespan(app: FastAPI):
     triage_task = asyncio.create_task(_background_triage_sweep())
     print(f"   [OK] Triage sweep every {settings.triage_sweep_interval_seconds}s")
 
+    ditto_task = asyncio.create_task(ditto_sync_loop())
+    print("   [OK] Ditto sync every 5s")
+
     yield
 
     print("Shutting down...")
     risk_task.cancel()
     triage_task.cancel()
+    ditto_task.cancel()
     try:
         await risk_task
     except asyncio.CancelledError:
         pass
     try:
         await triage_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await ditto_task
     except asyncio.CancelledError:
         pass
     mqtt_bridge.stop()
