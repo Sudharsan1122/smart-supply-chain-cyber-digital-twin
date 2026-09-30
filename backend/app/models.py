@@ -1,8 +1,21 @@
 """SQLAlchemy 2.0 ORM models for the Supply Chain Digital Twin."""
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from datetime import datetime, timezone
+import enum
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum as SQLEnum,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -24,9 +37,6 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False, default=RoleEnum.VIEWER.value)
     org_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    partner_org_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("partner_organizations.id"), nullable=True, index=True
-    )
     region: Mapped[str] = mapped_column(String(64), nullable=False, default="SOUTH")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
@@ -115,46 +125,36 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
+class CommitmentStatus(str, enum.Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    REJECTED = "rejected"
+
+
 class PartnerOrganization(Base):
-    """External supplier partner entity scoped by unique org_id and region (CR-001)."""
-
     __tablename__ = "partner_organizations"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    name: Mapped[str] = mapped_column(String(128), nullable=False)
-    org_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, index=True)
-    region: Mapped[str] = mapped_column(String(64), nullable=False, default="SOUTH", index=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
-
-    commitments: Mapped[list[PartnerCommitment]] = relationship(
-        "PartnerCommitment",
-        back_populates="partner_org",
-        cascade="all, delete-orphan",
-    )
+    id = Column(Integer, primary_key=True)
+    name = Column(String(120), nullable=False, unique=True)
+    org_id = Column(String(40), nullable=False, unique=True, index=True)
+    region = Column(String(80), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), default=_utc_now)
+    commitments = relationship("PartnerCommitment", back_populates="partner")
 
 
 class PartnerCommitment(Base):
-    """Cryptographically signed weekly supplier capacity commitment with replay-safe nonce (CR-001)."""
-
     __tablename__ = "partner_commitments"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    partner_org_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("partner_organizations.org_id"),
+    id = Column(Integer, primary_key=True)
+    partner_org_id = Column(Integer, ForeignKey("partner_organizations.id"), nullable=False)
+    period_start = Column(DateTime(timezone=True), nullable=False)
+    period_end = Column(DateTime(timezone=True), nullable=False)
+    committed_capacity = Column(Numeric(12, 2), nullable=False)
+    signature = Column(String(128), nullable=False)
+    nonce = Column(String(64), nullable=False, unique=True)
+    status = Column(
+        SQLEnum(CommitmentStatus, values_callable=lambda x: [e.value for e in x], native_enum=False),
+        default=CommitmentStatus.PENDING.value,
         nullable=False,
-        index=True,
     )
-    period_start: Mapped[date] = mapped_column(Date, nullable=False)
-    period_end: Mapped[date] = mapped_column(Date, nullable=False)
-    committed_capacity: Mapped[float] = mapped_column(Numeric(12, 2, asdecimal=False), nullable=False)
-    signature: Mapped[str] = mapped_column(String(128), nullable=False)
-    nonce: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="confirmed")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
-
-    partner_org: Mapped[PartnerOrganization | None] = relationship(
-        "PartnerOrganization",
-        back_populates="commitments",
-    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), default=_utc_now)
+    partner = relationship("PartnerOrganization", back_populates="commitments")

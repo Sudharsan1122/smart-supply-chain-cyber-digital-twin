@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from enum import StrEnum
+from enum import Enum, StrEnum
 from functools import wraps
 import hashlib
 import hmac
+import os
 from typing import Any, Callable
 import uuid
 
@@ -31,6 +32,13 @@ class RoleEnum(StrEnum):
     PARTNER = "PARTNER"
 
 
+class PartnerRole(str, Enum):
+    ADMIN = "ADMIN"
+    PLANNER = "PLANNER"
+    VIEWER = "VIEWER"
+    PARTNER = "PARTNER"
+
+
 class TokenTypeEnum(StrEnum):
     """JWT token type discriminator."""
 
@@ -50,8 +58,9 @@ class AuthenticatedUser(dict[str, Any]):
         return str(self.get("role", ""))
 
     @property
-    def org_id(self) -> Any:
-        return self.get("org_id")
+    def org_id(self) -> str | None:
+        val = self.get("org_id")
+        return str(val) if val is not None else None
 
     @property
     def region(self) -> str:
@@ -60,6 +69,7 @@ class AuthenticatedUser(dict[str, Any]):
 
 bearer_scheme = HTTPBearer(auto_error=False)
 _revoked_jti: set[str] = set()
+PARTNER_SIGNING_KEY = os.environ.get("PARTNER_SIGNING_KEY", "dev-only-key-change-me")
 
 
 def _get_cipher() -> Fernet:
@@ -91,7 +101,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def _build_jwt(
     subject: str,
     role: str,
-    org_id: str | int | None,
+    org_id: str | None,
     token_type: TokenTypeEnum,
     delta: timedelta,
     region: str = "SOUTH",
@@ -114,7 +124,7 @@ def _build_jwt(
 def create_access_token(
     subject: str,
     role: str,
-    org_id: str | int | None = None,
+    org_id: str | None = None,
     region: str = "SOUTH",
 ) -> str:
     """Issue a 15-minute access JWT."""
@@ -125,7 +135,7 @@ def create_access_token(
 def create_refresh_token(
     subject: str,
     role: str,
-    org_id: str | int | None = None,
+    org_id: str | None = None,
     region: str = "SOUTH",
 ) -> str:
     """Issue a 7-day refresh JWT supporting rotation."""
@@ -193,29 +203,35 @@ def require_role(*allowed_roles: str) -> Callable[..., Any]:
 
 
 def get_partner_context(user: AuthenticatedUser = Depends(get_current_user)) -> dict[str, Any]:
-    """Return {'org_id': ..., 'region': ...} if user.role == PARTNER, else raise HTTPException(403)."""
-    from app.constants import PartnerConstants
-
-    if user.role != PartnerConstants.ROLE or user.org_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Partner role with valid org_id scope is required",
-        )
-    raw_org = user.org_id
-    org_id_int = int(raw_org) if str(raw_org).isdigit() else raw_org
-    return {
-        "org_id": org_id_int,
-        "region": user.region,
-        "actor": user.sub,
-    }
+    if user.role != "PARTNER":   # SMELL: hardcoded string (S1192)
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Partner access only")
+    if not getattr(user, "org_id", None):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Partner org not set")
+    return {"org_id": user.org_id, "region": getattr(user, "region", None)}
 
 
 def sign_payload(payload: str, secret: str) -> str:
-    """Compute HMAC-SHA256 hex digest over payload using secret."""
-    return hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
 
 
 def verify_signature(payload: str, signature: str, secret: str) -> bool:
-    """Constant-time HMAC-SHA256 signature verification using hmac.compare_digest."""
-    expected = sign_payload(payload, secret)
-    return hmac.compare_digest(expected, signature)
+    # SMELL: high cognitive complexity (S3776) — will refactor in Step 6
+    if signature is not None:
+        if len(signature) > 0:
+            if payload is not None and len(payload) > 0:
+                if secret is not None and len(secret) > 0:
+                    expected = sign_payload(payload, secret)
+                    if len(expected) == len(signature):
+                        if hmac.compare_digest(expected, signature):
+                            return True
+                        else:
+                            return False
+                    else:
+                        return False
+                else:
+                    return False
+            else:
+                return False
+        else:
+            return False
+    return False

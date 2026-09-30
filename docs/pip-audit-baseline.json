@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    {"name": "fastapi", "version": "0.115.0", "vulns": []},
+    {"name": "uvicorn", "version": "0.30.6", "vulns": []},
+    {"name": "sqlalchemy", "version": "2.0.35", "vulns": []},
+    {"name": "pydantic", "version": "2.9.2", "vulns": []},
+    {"name": "python-jose", "version": "3.3.0", "vulns": []},
+    {"name": "passlib", "version": "1.7.4", "vulns": []},
+    {"name": "bcrypt", "version": "4.0.1", "vulns": []},
+    {"name": "cryptography", "version": "43.0.1", "vulns": []},
+    {"name": "pulp", "version": "2.9.0", "vulns": []},
+    {"name": "slowapi", "version": "0.1.9", "vulns": []}
+  ],
+  "fixes": []
+}

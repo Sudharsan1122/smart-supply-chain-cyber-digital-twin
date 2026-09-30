@@ -35,11 +35,11 @@ SEED_EDGES: list[dict[str, object]] = [
 ]
 
 SEED_PARTNER_ORGS: list[dict[str, object]] = [
-    {"org_id": 101, "name": "Apex Semiconductor South", "region": "SOUTH", "is_active": True},
-    {"org_id": 102, "name": "Bharat Precision Systems", "region": "SOUTH", "is_active": True},
-    {"org_id": 103, "name": "Deccan Logistics & Foundry", "region": "SOUTH", "is_active": True},
-    {"org_id": 104, "name": "Kaveri Microelectronics", "region": "SOUTH", "is_active": True},
-    {"org_id": 105, "name": "Coromandel Industrial Supply", "region": "SOUTH", "is_active": True},
+    {"org_id": "101", "name": "Apex Semiconductor South", "region": "SOUTH", "is_active": True},
+    {"org_id": "102", "name": "Bharat Precision Systems", "region": "SOUTH", "is_active": True},
+    {"org_id": "103", "name": "Deccan Logistics & Foundry", "region": "SOUTH", "is_active": True},
+    {"org_id": "104", "name": "Kaveri Microelectronics", "region": "SOUTH", "is_active": True},
+    {"org_id": "105", "name": "Coromandel Industrial Supply", "region": "SOUTH", "is_active": True},
 ]
 
 

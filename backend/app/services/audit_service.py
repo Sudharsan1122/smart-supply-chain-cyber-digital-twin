@@ -71,6 +71,19 @@ def record_audit_event(db: Session, event: dict[str, Any]) -> AuditLog:
     return entry
 
 
+def log_event(db: Session, action: str, details: dict[str, Any], actor: str = "PARTNER") -> AuditLog:
+    """Convenience helper recording an audit event via record_audit_event."""
+    return record_audit_event(
+        db,
+        {
+            "actor": actor,
+            "action": action,
+            "resource": str(details.get("org_id", "PARTNER")),
+            "details": details,
+        },
+    )
+
+
 def verify_audit_chain(db: Session) -> bool:
     """Verify integrity of the entire hash-chained audit log."""
     entries = list(db.execute(select(AuditLog).order_by(AuditLog.id.asc())).scalars().all())
