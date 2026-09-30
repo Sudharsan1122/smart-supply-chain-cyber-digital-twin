@@ -1,0 +1,25 @@
+graph TD
+    ROOT[ROOT GOAL:<br/>Compromise VGW-101 to<br/>Manipulate Truck Telemetry]
+    ROOT --> OR1((OR))
+
+    OR1 --> P1[Path 1:<br/>Firmware Attack]
+    OR1 --> P2[Path 2:<br/>Credential Attack]
+
+    P1 --> AND1((AND))
+    AND1 --> S1A[Downgrade Firmware]
+    AND1 --> S1B[Bypass Signature]
+
+    P2 --> OR2((OR))
+    OR2 --> S2A[Brute Force Login]
+    OR2 --> S2B[Steal Session Cookie]
+
+    S1A --> SUCCESS[ATTACK SUCCESSFUL:<br/>VGW-101 Compromised]
+    S1B --> SUCCESS
+    S2A --> SUCCESS
+    S2B --> SUCCESS
+
+    style ROOT fill:#f8cecc,stroke:#b85450
+    style OR1 fill:#fff2cc,stroke:#d6b656
+    style AND1 fill:#d5e8d4,stroke:#82b366
+    style OR2 fill:#fff2cc,stroke:#d6b656
+    style SUCCESS fill:#f8cecc,stroke:#b85450

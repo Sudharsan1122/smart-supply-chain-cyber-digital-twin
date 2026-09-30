@@ -1,0 +1,141 @@
+// Smart Supply Chain Cyber Digital Twin - ER Diagram
+
+Table Asset {
+  id bigint [pk, increment]
+  asset_id varchar [unique, not null]
+  asset_type varchar [not null]
+  name varchar [not null]
+  parent_id bigint [ref: > Asset.id]
+  metadata jsonb
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table Telemetry {
+  id bigint [pk, increment]
+  asset_id bigint [ref: > Asset.id]
+  metric varchar
+  value double
+  unit varchar
+  source varchar
+  payload jsonb
+  timestamp timestamp
+}
+
+Table SecurityEvent {
+  id bigint [pk, increment]
+  asset_id bigint [ref: > Asset.id]
+  event_type varchar
+  severity varchar
+  description text
+  source varchar
+  payload jsonb
+  timestamp timestamp
+}
+
+Table TwinState {
+  id bigint [pk, increment]
+  asset_id bigint [ref: > Asset.id, unique]
+  state varchar
+  health varchar
+  position jsonb
+  metrics jsonb
+  last_seen timestamp
+  updated_at timestamp
+}
+
+Table Detection {
+  id bigint [pk, increment]
+  asset_id bigint [ref: > Asset.id]
+  telemetry_id bigint [ref: > Telemetry.id]
+  detection_type varchar
+  rule_id varchar
+  model_version varchar
+  confidence double
+  severity varchar
+  description text
+  detected_at timestamp
+}
+
+Table RiskScore {
+  id bigint [pk, increment]
+  asset_id bigint [ref: > Asset.id]
+  score double
+  factors jsonb
+  model_version varchar
+  scored_at timestamp
+}
+
+Table Incident {
+  id bigint [pk, increment]
+  incident_uid varchar [unique]
+  title varchar
+  severity varchar
+  status varchar
+  root_asset_id bigint [ref: > Asset.id]
+  rule_id varchar
+  confidence double
+  window_start timestamp
+  window_end timestamp
+}
+
+Table IOC {
+  id bigint [pk, increment]
+  value varchar
+  ioc_type varchar
+  source varchar
+  confidence double
+  first_seen timestamp
+  last_seen timestamp
+}
+
+Table IOCEnrichment {
+  id bigint [pk, increment]
+  ioc_id bigint [ref: > IOC.id]
+  provider varchar
+  verdict varchar
+  raw jsonb
+  enriched_at timestamp
+}
+
+Table AttackStory {
+  id bigint [pk, increment]
+  attack_id varchar [unique]
+  scenario_id bigint
+  title varchar
+  narrative text
+  status varchar
+  started_at timestamp
+  ended_at timestamp
+}
+
+Table AttackStoryEvent {
+  id bigint [pk, increment]
+  story_id bigint [ref: > AttackStory.id]
+  evidence_kind varchar
+  evidence_id bigint
+  occurred_at timestamp
+  severity varchar
+  title varchar
+  tactic varchar
+}
+
+Table BlastRadius {
+  id bigint [pk, increment]
+  attack_story_id bigint [ref: > AttackStory.id]
+  source_asset_id bigint [ref: > Asset.id]
+  impacted_asset_id bigint [ref: > Asset.id]
+  depth int
+  impact_score double
+  computed_at timestamp
+}
+
+Table Triage {
+  id bigint [pk, increment]
+  detection_id bigint [ref: > Detection.id]
+  verdict varchar
+  confidence double
+  analyst varchar
+  notes text
+  created_at timestamp
+}

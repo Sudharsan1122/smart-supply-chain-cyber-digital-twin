@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cyber Digital Twin - UI Wireframes</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 20px; }
+    .screen { background: #161b22; border: 1px solid #30363d; padding: 20px; margin-bottom: 30px; border-radius: 8px; }
+    h2 { color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
+    .kpi-row { display: flex; gap: 15px; margin-bottom: 20px; }
+    .kpi { background: #0d1117; border: 1px solid #30363d; padding: 15px; border-radius: 6px; flex: 1; }
+    .kpi-value { font-size: 28px; font-weight: 700; color: #3fb950; }
+    .kpi-label { font-size: 12px; color: #8b949e; }
+    .event-row { padding: 8px 0; border-bottom: 1px solid #21262d; display: flex; gap: 10px; }
+    .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge.high { background: #7d1a1a; color: #ffdcdc; }
+    .badge.critical { background: #b91c1c; color: #fff; }
+  </style>
+</head>
+<body>
+<h1 style="color:#58a6ff;">Smart Supply Chain Cyber Digital Twin — UI Wireframes</h1>
+
+<div class="screen">
+  <h2>Screen 1 — Live Fleet Dashboard</h2>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">TWIN ASSETS</div><div class="kpi-value">32</div></div>
+    <div class="kpi"><div class="kpi-label">GRAPH EDGES</div><div class="kpi-value">14</div></div>
+    <div class="kpi"><div class="kpi-label">MQTT</div><div class="kpi-value">connected</div></div>
+    <div class="kpi"><div class="kpi-label">DATABASE</div><div class="kpi-value">connected</div></div>
+    <div class="kpi"><div class="kpi-label">TWIN</div><div class="kpi-value">ready</div></div>
+  </div>
+  <h3 style="color:#8b949e;">Live Security Event Stream</h3>
+  <div class="event-row"><span class="badge critical">critical</span> RULE-002: TRUCK-003 temperature 18°C</div>
+  <div class="event-row"><span class="badge high">high</span> RULE-006: AUTH-001 40 failed logins</div>
+  <div class="event-row"><span class="badge high">high</span> RULE-007: VGW-101 firmware v1.0.0</div>
+</div>
+
+<div class="screen">
+  <h2>Screen 2 — Attack Story Detail</h2>
+  <h3>Vehicle Gateway Compromise → VGW-101</h3>
+  <p>Status: analyzed | Attribution: vehicle_gateway_compromise (0.85)</p>
+  <h4 style="color:#8b949e;">Timeline</h4>
+  <div class="event-row">14:17:01 · RULE-007: Firmware change</div>
+  <div class="event-row">14:17:15 · RULE-009: Port scan</div>
+  <div class="event-row">14:17:23 · RULE-008: Heartbeat loss</div>
+</div>
+
+<div class="screen">
+  <h2>Screen 3 — Triage Metrics</h2>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">TOTAL TRIAGED</div><div class="kpi-value">206</div></div>
+    <div class="kpi"><div class="kpi-label">PRECISION</div><div class="kpi-value">0.89</div></div>
+    <div class="kpi"><div class="kpi-label">RECALL</div><div class="kpi-value">1.00</div></div>
+    <div class="kpi"><div class="kpi-label">F1</div><div class="kpi-value">0.94</div></div>
+  </div>
+</div>
+</body>
+</html>

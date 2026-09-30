@@ -1,0 +1,56 @@
+flowchart LR
+    A1[Security Analyst] --> P1
+    A2[Attacker Simulated] --> P1
+    A3[Wazuh SIEM] --> P1
+    A4[Suricata IDS] --> P1
+
+    P1[P1: Ingestion] --> P2[P2: Validation]
+    P2 --> D1[(D1: PostgreSQL)]
+    P2 --> P3[P3: Detection]
+    P3 --> P4[P4: Correlation]
+    P3 --> D1
+    P4 --> P5[P5: IOC Enrichment]
+    P5 --> TI[Threat Intel APIs]
+    TI --> P5
+    P5 --> D1
+    P3 --> P6[P6: Risk Scoring]
+    P6 --> D1
+    P4 --> P7[P7: Attack Story]
+    P7 --> D1
+    P7 --> P8[P8: Blast Radius]
+    P8 --> D1
+    P3 --> P9[P9: Auto-Triage]
+    P9 --> D1
+    D1 --> D2[(D2: Eclipse Ditto)]
+
+    subgraph TB1["Trust Boundary 1: Container Network"]
+        P1
+        P2
+        P3
+        P4
+        P5
+        P6
+        P7
+        P8
+        P9
+        D1
+        D2
+    end
+
+    subgraph TB2["Trust Boundary 2: External"]
+        TI
+        A3
+        A4
+    end
+
+    subgraph TB3["Trust Boundary 3: Untrusted"]
+        A2
+    end
+
+    classDef process fill:#d5e8d4,stroke:#82b366
+    classDef store fill:#e1d5e7,stroke:#9673a6
+    classDef entity fill:#dae8fc,stroke:#6c8ebf
+
+    class P1,P2,P3,P4,P5,P6,P7,P8,P9 process
+    class D1,D2 store
+    class A1,A2,A3,A4,TI entity
