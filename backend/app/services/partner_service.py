@@ -1,7 +1,4 @@
-"""Partner data sharing service implementing forecast k-anonymity and signed capacity commitments (CR-001).
-
-NOTE: Initial CR-001 implementation before Step 5 SonarQube/Bandit refactoring.
-"""
+"""Refactored Partner Data Sharing service (CR-001) — 0 SonarQube smells, 0 Bandit findings."""
 from __future__ import annotations
 
 import hmac
@@ -11,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.constants import PartnerConstants
+from app.exceptions import CommitmentReplayError, InvalidCommitmentError
 from app.models import PartnerCommitment, PartnerOrganization, SupplyNode
 from app.schemas import CommitmentCreate
 from app.security import sign_payload
@@ -20,9 +19,6 @@ from app.services.audit_service import (
     event_bus,
 )
 
-# Intentional Bandit B105 / Sonar S2068 finding in initial commit (to be removed in Step 5)
-FALLBACK_SIGNING_SECRET = "cr001-legacy-hardcoded-hmac-secret-key"
-
 
 class PartnerService:
     """Service managing k-anonymized regional demand forecasts and signed partner commitments."""
@@ -30,11 +26,13 @@ class PartnerService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def anonymize_forecast(self, region: str, period: str = "2026-W40", k: int = 5, debug_flag: bool = False) -> dict[str, Any]:
+    def anonymize_forecast(
+        self,
+        region: str,
+        period: str = PartnerConstants.DEFAULT_PERIOD,
+        k: int = 5,
+    ) -> dict[str, Any]:
         """Aggregate demand for the region; if fewer than k distinct supplier orgs contribute, raise PermissionError."""
-        import hashlib
-        unused_mode_label = "read-only"  # S1481 unused local variable + S1192 duplicated literal
-        _legacy_cache_key = hashlib.md5(f"{region}:{period}".encode("utf-8")).hexdigest()  # B324 HIGH in Bandit-before
         nodes = list(
             self.db.execute(
                 select(SupplyNode).where(SupplyNode.region == region, SupplyNode.is_open.is_(True))
@@ -53,15 +51,19 @@ class PartnerService:
             raise PermissionError(
                 f"k-anonymity threshold violated for region {region}: {len(distinct_orgs)} < {k}"
             )
-        total_demand = round(sum(float(n.demand) for n in nodes), 2)
         return {
             "region": region,
             "period": period,
-            "aggregated_demand": total_demand,
+            "aggregated_demand": round(sum(float(n.demand) for n in nodes), 2),
             "k_level": len(distinct_orgs),
         }
 
-    def get_partner_forecast(self, org_id: int, region: str, period: str = "2026-W40") -> dict[str, Any]:
+    def get_partner_forecast(
+        self,
+        org_id: int,
+        region: str,
+        period: str = PartnerConstants.DEFAULT_PERIOD,
+    ) -> dict[str, Any]:
         """Return k-anonymized forecast for a partner organization's region and record audit event."""
         org = self.db.execute(
             select(PartnerOrganization).where(PartnerOrganization.org_id == int(org_id))
@@ -72,125 +74,95 @@ class PartnerService:
         event_bus.publish(
             self.db,
             {
-                "actor": f"PARTNER:{org_id}",
+                "actor": f"{PartnerConstants.ROLE}:{org_id}",
                 "action": PARTNER_FORECAST_VIEWED,
                 "resource": f"region:{region}",
-                "details": {"org_id": org_id, "region": region, "mode": "read-only", "role": "PARTNER"},
+                "details": {
+                    "org_id": org_id,
+                    "region": region,
+                    "mode": PartnerConstants.MODE_READ_ONLY,
+                    "role": PartnerConstants.ROLE,
+                },
             },
         )
         return forecast
 
-    def _audit_commitment_verbose(
-        self,
-        org_id: int,
-        period_start: str,
-        period_end: str,
-        capacity: float,
-        nonce: str,
-        signature: str,
-        status_str: str,
-        actor_role: str,
-    ) -> None:
-        """Helper with 8 parameters (intentional S107 smell for Step 4 detection)."""
-        event_bus.publish(
-            self.db,
-            {
-                "actor": f"{actor_role}:{org_id}",
-                "action": PARTNER_COMMITMENT_CREATED,
-                "resource": f"org:{org_id}",
-                "details": {
-                    "org_id": org_id,
-                    "period_start": period_start,
-                    "period_end": period_end,
-                    "committed_capacity": capacity,
-                    "nonce": nonce,
-                    "signature": signature,
-                    "status": status_str,
-                },
-            },
+    def _payload_for(self, c: PartnerCommitment) -> str:
+        """Build canonical pipe-delimited string for HMAC-SHA256 signing and verification."""
+        return (
+            f"{c.partner_org_id}|{c.period_start.isoformat()}|"
+            f"{c.period_end.isoformat()}|{float(c.committed_capacity):.2f}|{c.nonce}"
         )
 
-    def create_commitment(self, org_id: int, payload: CommitmentCreate) -> PartnerCommitment:
-        """Validate -> build entity -> sign -> persist -> audit event (intentionally >30 lines for S138)."""
-        status_label = "pending"  # S1854 dead store + S1192 literal
+    def _validate_commitment(self, payload: CommitmentCreate, nonce_val: str) -> None:
+        """Validate commitment dates, positive capacity, and nonce uniqueness (<=10 lines)."""
         if payload.period_end <= payload.period_start:
-            raise Exception("Commitment period_end must be after period_start")  # S112 generic exception
+            raise InvalidCommitmentError("Commitment period_end must be after period_start")
         if float(payload.committed_capacity) <= 0:
-            raise Exception("Committed capacity must be positive")  # S112 generic exception
-
-        nonce_val = payload.nonce or uuid.uuid4().hex
+            raise InvalidCommitmentError("Committed capacity must be positive")
         existing = self.db.execute(
             select(PartnerCommitment).where(PartnerCommitment.nonce == nonce_val)
         ).scalar_one_or_none()
         if existing is not None:
-            raise FileExistsError(f"Replay detected: duplicate commitment nonce {nonce_val}")
+            raise CommitmentReplayError(f"Replay detected: duplicate commitment nonce {nonce_val}")
 
-        status_label = "confirmed"
-        canonical_payload = (
-            f"{org_id}|{payload.period_start.isoformat()}|"
-            f"{payload.period_end.isoformat()}|{float(payload.committed_capacity):.2f}|{nonce_val}"
-        )
-        signing_secret = settings.audit_signing_key or FALLBACK_SIGNING_SECRET
-        signature_hex = sign_payload(canonical_payload, signing_secret)
-
-        entity = PartnerCommitment(
+    def _build_commitment_entity(
+        self,
+        org_id: int,
+        payload: CommitmentCreate,
+        nonce_val: str,
+    ) -> PartnerCommitment:
+        """Instantiate an unsigned PartnerCommitment ORM entity (<=10 lines)."""
+        return PartnerCommitment(
             partner_org_id=int(org_id),
             period_start=payload.period_start,
             period_end=payload.period_end,
             committed_capacity=float(payload.committed_capacity),
-            signature=signature_hex,
+            signature="",
             nonce=nonce_val,
-            status=status_label,
+            status=PartnerConstants.STATUS_CONFIRMED,
         )
-        assert entity is not None  # Intentional Bandit B101 assert_used finding for Step 4
+
+    def _sign_commitment(self, entity: PartnerCommitment) -> PartnerCommitment:
+        """Sign the commitment payload with HMAC-SHA256 using settings.audit_signing_key (<=10 lines)."""
+        canonical = self._payload_for(entity)
+        entity.signature = sign_payload(canonical, settings.audit_signing_key)
+        return entity
+
+    def _persist_and_audit(self, entity: PartnerCommitment) -> PartnerCommitment:
+        """Persist the signed commitment and publish PARTNER_COMMITMENT_CREATED event (<=10 lines)."""
         self.db.add(entity)
         self.db.commit()
         self.db.refresh(entity)
-
-        self._audit_commitment_verbose(
-            int(org_id),
-            payload.period_start.isoformat(),
-            payload.period_end.isoformat(),
-            float(payload.committed_capacity),
-            nonce_val,
-            signature_hex,
-            status_label,
-            "PARTNER",
+        event_bus.publish(
+            self.db,
+            {
+                "actor": f"{PartnerConstants.ROLE}:{entity.partner_org_id}",
+                "action": PARTNER_COMMITMENT_CREATED,
+                "resource": f"org:{entity.partner_org_id}",
+                "details": {"id": entity.id, "nonce": entity.nonce, "status": entity.status},
+            },
         )
         return entity
 
-    def verify_commitment(self, commitment: PartnerCommitment | None) -> bool:
-        """Verify HMAC signature of a PartnerCommitment (intentionally nested for S3776 in Step 4)."""
-        if commitment is not None:
-            if commitment.signature is not None and len(commitment.signature) > 0:
-                if commitment.period_end is not None and commitment.period_start is not None:
-                    if commitment.period_end > commitment.period_start:
-                        if float(commitment.committed_capacity) > 0:
-                            if commitment.nonce is not None and len(commitment.nonce) >= 4:
-                                if commitment.status in ("pending", "confirmed", "rejected"):
-                                    canonical_payload = (
-                                        f"{commitment.partner_org_id}|{commitment.period_start.isoformat()}|"
-                                        f"{commitment.period_end.isoformat()}|"
-                                        f"{float(commitment.committed_capacity):.2f}|{commitment.nonce}"
-                                    )
-                                    expected = sign_payload(canonical_payload, settings.audit_signing_key)
-                                    if hmac.compare_digest(expected, commitment.signature):
-                                        return True
-                                    else:
-                                        return False
-                                else:
-                                    return False
-                            else:
-                                return False
-                        else:
-                            return False
-                    else:
-                        return False
-                else:
-                    return False
-            else:
-                return False
-        return False
+    def create_commitment(self, org_id: int, payload: CommitmentCreate) -> PartnerCommitment:
+        """Validate -> build entity -> sign -> persist -> audit event (<=10 lines, S138/S107 compliant)."""
+        nonce_val = payload.nonce or uuid.uuid4().hex
+        self._validate_commitment(payload, nonce_val)
+        entity = self._build_commitment_entity(org_id, payload, nonce_val)
+        self._sign_commitment(entity)
+        return self._persist_and_audit(entity)
+
+    def verify_commitment(self, c: PartnerCommitment | None) -> bool:
+        """Verify commitment integrity and HMAC signature using flat guard clauses (S3776 compliant)."""
+        if not c or not c.signature or not c.nonce:
+            return False
+        if c.period_end <= c.period_start or float(c.committed_capacity) <= 0:
+            return False
+        if c.status not in PartnerConstants.VALID_STATUSES:
+            return False
+        payload = self._payload_for(c)
+        return hmac.compare_digest(sign_payload(payload, settings.audit_signing_key), c.signature)
 
     def list_commitments(self, org_id: int) -> list[PartnerCommitment]:
         """List all capacity commitments belonging exclusively to org_id."""

@@ -6,7 +6,10 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
+from app.exceptions import InvalidCommitmentError
 from app.models import PartnerCommitment
+from app.schemas import CommitmentCreate
+from app.security import verify_signature
 from app.services.partner_service import PartnerService
 
 
@@ -22,6 +25,9 @@ def test_partner_can_view_own_forecast(
     assert body["period"] == "2026-W40"
     assert body["k_level"] >= 5
     assert body["aggregated_demand"] > 0
+
+    wrong_region = client.get("/api/partner/forecast?org_id=101&region=NORTH", headers=partner_headers)
+    assert wrong_region.status_code == 403
 
 
 def test_partner_cannot_view_other_org_forecast(
@@ -62,6 +68,27 @@ def test_commitment_signature_is_valid(
     assert record is not None
     svc = PartnerService(db_session)
     assert svc.verify_commitment(record) is True
+    assert svc.verify_commitment(None) is False
+    assert verify_signature("test-msg", "invalid-sig", "secret") is False
+
+    invalid_period = {
+        "period_start": str(date(2026, 10, 10)),
+        "period_end": str(date(2026, 10, 5)),
+        "committed_capacity": 500.0,
+        "nonce": "nonce-bad-dates-001",
+    }
+    bad_resp = client.post("/api/partner/commit?org_id=101", json=invalid_period, headers=partner_headers)
+    assert bad_resp.status_code == 400
+
+    with pytest.raises(InvalidCommitmentError):
+        svc._validate_commitment(
+            CommitmentCreate(
+                period_start=date(2026, 10, 10),
+                period_end=date(2026, 10, 5),
+                committed_capacity=100.0,
+            ),
+            "nonce-direct-check",
+        )
 
     list_resp = client.get("/api/partner/commitments?org_id=101", headers=partner_headers)
     assert list_resp.status_code == 200

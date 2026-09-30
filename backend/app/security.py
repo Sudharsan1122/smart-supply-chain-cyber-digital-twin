@@ -194,7 +194,9 @@ def require_role(*allowed_roles: str) -> Callable[..., Any]:
 
 def get_partner_context(user: AuthenticatedUser = Depends(get_current_user)) -> dict[str, Any]:
     """Return {'org_id': ..., 'region': ...} if user.role == PARTNER, else raise HTTPException(403)."""
-    if user.role != "PARTNER" or user.org_id is None:
+    from app.constants import PartnerConstants
+
+    if user.role != PartnerConstants.ROLE or user.org_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Partner role with valid org_id scope is required",

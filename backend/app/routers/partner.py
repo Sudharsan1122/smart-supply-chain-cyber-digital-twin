@@ -5,7 +5,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.constants import PartnerConstants
 from app.database import get_db
+from app.exceptions import CommitmentReplayError, InvalidCommitmentError
 from app.schemas import CommitmentCreate, CommitmentResponse, PartnerForecastResponse
 from app.security import AuthenticatedUser, get_current_user, get_partner_context
 from app.services.audit_service import PARTNER_ACCESS_DENIED, event_bus
@@ -21,7 +23,7 @@ def _enforce_org_match(
     user: AuthenticatedUser,
 ) -> int:
     """Verify partner user is only accessing their own org_id, logging PARTNER_ACCESS_DENIED on mismatch."""
-    if user.role != "PARTNER":
+    if user.role != PartnerConstants.ROLE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only PARTNER role permitted")
     scoped_org_id = int(ctx["org_id"])
     if requested_org_id is not None and int(requested_org_id) != scoped_org_id:
@@ -31,7 +33,11 @@ def _enforce_org_match(
                 "actor": user.sub,
                 "action": PARTNER_ACCESS_DENIED,
                 "resource": f"org:{requested_org_id}",
-                "details": {"ScopedOrg": scoped_org_id, "RequestedOrg": requested_org_id, "role": "PARTNER"},
+                "details": {
+                    "ScopedOrg": scoped_org_id,
+                    "RequestedOrg": requested_org_id,
+                    "role": PartnerConstants.ROLE,
+                },
             },
         )
         raise HTTPException(
@@ -45,14 +51,14 @@ def _enforce_org_match(
 def get_partner_forecast_endpoint(
     org_id: int | None = Query(default=None),
     region: str | None = Query(default=None),
-    period: str = Query(default="2026-W40"),
+    period: str = Query(default=PartnerConstants.DEFAULT_PERIOD),
     db: Session = Depends(get_db),
     user: AuthenticatedUser = Depends(get_current_user),
     ctx: dict[str, Any] = Depends(get_partner_context),
 ) -> PartnerForecastResponse:
     """Return k-anonymized (k>=5) regional demand forecast scoped to the partner's organization."""
     scoped_org_id = _enforce_org_match(db, org_id, ctx, user)
-    target_region = region or str(ctx.get("region", "SOUTH"))
+    target_region = region or str(ctx.get("region", PartnerConstants.DEFAULT_REGION))
     svc = PartnerService(db)
     try:
         data = svc.get_partner_forecast(org_id=scoped_org_id, region=target_region, period=period)
@@ -74,9 +80,9 @@ def create_partner_commitment_endpoint(
     svc = PartnerService(db)
     try:
         commitment = svc.create_commitment(org_id=scoped_org_id, payload=payload)
-    except FileExistsError as exc:
+    except CommitmentReplayError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except ValueError as exc:
+    except InvalidCommitmentError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return CommitmentResponse.model_validate(commitment)
 
