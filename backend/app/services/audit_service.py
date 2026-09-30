@@ -16,6 +16,10 @@ from app.models import AuditLog
 logger = logging.getLogger(__name__)
 GENESIS_HASH = "0" * 64
 
+PARTNER_FORECAST_VIEWED = "partner.forecast.viewed"
+PARTNER_COMMITMENT_CREATED = "partner.commitment.created"
+PARTNER_ACCESS_DENIED = "partner.access.denied"
+
 
 class EventBus:
     """Lightweight publish-subscribe event bus decoupling domain modules from audit/notification sinks."""
@@ -38,33 +42,14 @@ event_bus = EventBus()
 
 
 def compute_audit_signature(prev_hash: str, actor: str, action: str, resource: str, details_json: str) -> str:
-    """Compute an HMAC-SHA256 signature chaining the previous record's signature.
-
-    Args:
-        prev_hash: Signature of the immediately preceding AuditLog row.
-        actor: Username or system principal.
-        action: Action identifier.
-        resource: Target entity identifier.
-        details_json: Canonical JSON string of event metadata.
-
-    Returns:
-        Hex-encoded HMAC-SHA256 digest.
-    """
+    """Compute an HMAC-SHA256 signature chaining the previous record's signature."""
     message = f"{prev_hash}|{actor}|{action}|{resource}|{details_json}".encode("utf-8")
     key = settings.audit_signing_key.encode("utf-8")
     return hmac.new(key, message, hashlib.sha256).hexdigest()
 
 
 def record_audit_event(db: Session, event: dict[str, Any]) -> AuditLog:
-    """Persist an append-only, cryptographically chained audit event.
-
-    Args:
-        db: Active SQLAlchemy session.
-        event: Event dictionary containing actor, action, resource, and details.
-
-    Returns:
-        Newly persisted AuditLog ORM instance.
-    """
+    """Persist an append-only, cryptographically chained audit event."""
     last_entry = db.execute(select(AuditLog).order_by(AuditLog.id.desc()).limit(1)).scalar_one_or_none()
     prev_hash = last_entry.signature if last_entry else GENESIS_HASH
     actor = str(event.get("actor", "SYSTEM"))
@@ -87,14 +72,7 @@ def record_audit_event(db: Session, event: dict[str, Any]) -> AuditLog:
 
 
 def verify_audit_chain(db: Session) -> bool:
-    """Verify integrity of the entire hash-chained audit log.
-
-    Args:
-        db: Active SQLAlchemy session.
-
-    Returns:
-        True if all HMAC signatures and chain links are intact, False otherwise.
-    """
+    """Verify integrity of the entire hash-chained audit log."""
     entries = list(db.execute(select(AuditLog).order_by(AuditLog.id.asc())).scalars().all())
     prev_hash = GENESIS_HASH
     for item in entries:

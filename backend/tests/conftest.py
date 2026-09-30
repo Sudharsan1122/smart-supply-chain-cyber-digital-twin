@@ -67,3 +67,10 @@ def viewer_headers() -> dict[str, str]:
     """Return Authorization header for an authenticated VIEWER user."""
     tok = create_access_token("viewer_user", RoleEnum.VIEWER.value, None)
     return {"Authorization": f"Bearer {tok}"}
+
+
+@pytest.fixture()
+def partner_headers() -> dict[str, str]:
+    """Return Authorization header for an authenticated PARTNER scoped to org_id=101 (SOUTH)."""
+    tok = create_access_token("partner_user", RoleEnum.PARTNER.value, 101, region="SOUTH")
+    return {"Authorization": f"Bearer {tok}"}

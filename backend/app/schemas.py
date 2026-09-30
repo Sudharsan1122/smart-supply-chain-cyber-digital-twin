@@ -1,7 +1,7 @@
 """Pydantic v2 Data Transfer Objects (DTOs) with strict input validation."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -162,3 +162,33 @@ class AuditLogRead(BaseModel):
     prev_hash: str
     signature: str
     created_at: datetime
+
+
+class PartnerForecastResponse(BaseModel):
+    """Anonymized regional demand forecast DTO for external partners (CR-001)."""
+
+    region: str
+    period: str
+    aggregated_demand: float
+    k_level: int
+
+
+class CommitmentCreate(BaseModel):
+    """Request payload for submitting a weekly supplier capacity commitment (CR-001)."""
+
+    period_start: date
+    period_end: date
+    committed_capacity: float = Field(gt=0.0, le=1_000_000.0)
+    nonce: str | None = Field(default=None, min_length=4, max_length=64)
+
+
+class CommitmentResponse(BaseModel):
+    """Signed confirmation receipt for a partner capacity commitment (CR-001)."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    status: str
+    signature: str
+    created_at: datetime
+    partner_org_id: int | None = None
+    committed_capacity: float | None = None
