@@ -1,17 +1,17 @@
 {
   "errors": [],
-  "generated_at": "2026-09-30T16:12:59Z",
+  "generated_at": "2026-09-30T17:39:23Z",
   "metrics": {
     "_totals": {
-      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.HIGH": 1,
       "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 1,
-      "SEVERITY.LOW": 2,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1822,
+      "loc": 1789,
       "nosec": 0,
       "skipped_tests": 2
     },
@@ -51,6 +51,19 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 41,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "app/constants.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 8,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -119,6 +132,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "app/exceptions.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 9,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "app/main.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -141,7 +167,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 122,
+      "loc": 126,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -258,7 +284,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 84,
+      "loc": 65,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -297,7 +323,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 135,
+      "loc": 138,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -310,7 +336,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 165,
+      "loc": 180,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -336,7 +362,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 70,
+      "loc": 81,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -367,15 +393,15 @@
       "skipped_tests": 0
     },
     "app/services\\partner_service.py": {
-      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.HIGH": 1,
       "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 1,
-      "SEVERITY.LOW": 2,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 185,
+      "loc": 121,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -408,49 +434,9 @@
   },
   "results": [
     {
-      "code": "23 # Intentional Bandit B105 / Sonar S2068 finding in initial commit (to be removed in Step 5)\n24 FALLBACK_SIGNING_SECRET = \"cr001-legacy-hardcoded-hmac-secret-key\"\n25 \n",
-      "col_offset": 26,
-      "end_col_offset": 66,
-      "filename": "app/services\\partner_service.py",
-      "issue_confidence": "MEDIUM",
-      "issue_cwe": {
-        "id": 259,
-        "link": "https://cwe.mitre.org/data/definitions/259.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Possible hardcoded password: 'cr001-legacy-hardcoded-hmac-secret-key'",
-      "line_number": 24,
-      "line_range": [
-        24
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html",
-      "test_id": "B105",
-      "test_name": "hardcoded_password_string"
-    },
-    {
-      "code": "36         unused_mode_label = \"read-only\"  # S1481 unused local variable + S1192 duplicated literal\n37         _legacy_cache_key = hashlib.md5(f\"{region}:{period}\".encode(\"utf-8\")).hexdigest()  # B324 HIGH in Bandit-before\n38         nodes = list(\n",
-      "col_offset": 28,
-      "end_col_offset": 77,
-      "filename": "app/services\\partner_service.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 327,
-        "link": "https://cwe.mitre.org/data/definitions/327.html"
-      },
-      "issue_severity": "HIGH",
-      "issue_text": "Use of weak MD5 hash for security. Consider usedforsecurity=False",
-      "line_number": 37,
-      "line_range": [
-        37
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
-      "test_id": "B324",
-      "test_name": "hashlib"
-    },
-    {
-      "code": "144         )\n145         assert entity is not None  # Intentional Bandit B101 assert_used finding for Step 4\n146         self.db.add(entity)\n",
-      "col_offset": 8,
-      "end_col_offset": 33,
+      "code": "115                 )\n116             except Exception:\n117                 pass  # SMELL: swallowed generic exception (S110 / S112)\n118 \n",
+      "col_offset": 12,
+      "end_col_offset": 20,
       "filename": "app/services\\partner_service.py",
       "issue_confidence": "HIGH",
       "issue_cwe": {
@@ -458,14 +444,15 @@
         "link": "https://cwe.mitre.org/data/definitions/703.html"
       },
       "issue_severity": "LOW",
-      "issue_text": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
-      "line_number": 145,
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 116,
       "line_range": [
-        145
+        116,
+        117
       ],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html",
-      "test_id": "B101",
-      "test_name": "assert_used"
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
     }
   ]
 }

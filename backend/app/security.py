@@ -17,6 +17,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
 from app.config import settings
+from app.constants import PartnerConstants
 
 BCRYPT_ROUNDS = 12
 ERR_INVALID_CREDENTIALS = "Invalid or expired authentication token"
@@ -29,14 +30,14 @@ class RoleEnum(StrEnum):
     ADMIN = "ADMIN"
     PLANNER = "PLANNER"
     VIEWER = "VIEWER"
-    PARTNER = "PARTNER"
+    PARTNER = PartnerConstants.ROLE
 
 
 class PartnerRole(str, Enum):
     ADMIN = "ADMIN"
     PLANNER = "PLANNER"
     VIEWER = "VIEWER"
-    PARTNER = "PARTNER"
+    PARTNER = PartnerConstants.ROLE
 
 
 class TokenTypeEnum(StrEnum):
@@ -203,7 +204,7 @@ def require_role(*allowed_roles: str) -> Callable[..., Any]:
 
 
 def get_partner_context(user: AuthenticatedUser = Depends(get_current_user)) -> dict[str, Any]:
-    if user.role != "PARTNER":   # SMELL: hardcoded string (S1192)
+    if user.role != PartnerConstants.ROLE:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Partner access only")
     if not getattr(user, "org_id", None):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Partner org not set")
@@ -215,23 +216,7 @@ def sign_payload(payload: str, secret: str) -> str:
 
 
 def verify_signature(payload: str, signature: str, secret: str) -> bool:
-    # SMELL: high cognitive complexity (S3776) — will refactor in Step 6
-    if signature is not None:
-        if len(signature) > 0:
-            if payload is not None and len(payload) > 0:
-                if secret is not None and len(secret) > 0:
-                    expected = sign_payload(payload, secret)
-                    if len(expected) == len(signature):
-                        if hmac.compare_digest(expected, signature):
-                            return True
-                        else:
-                            return False
-                    else:
-                        return False
-                else:
-                    return False
-            else:
-                return False
-        else:
-            return False
-    return False
+    if not payload or not signature or not secret:
+        return False
+    expected = sign_payload(payload, secret)
+    return hmac.compare_digest(expected, signature)

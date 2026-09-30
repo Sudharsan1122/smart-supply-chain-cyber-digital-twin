@@ -1,49 +1,33 @@
 # SonarQube Analysis — BEFORE (feature/partner-sharing)
-# Commit: 0c649f4cee41c89a4d33a85910cb73a4e9bca74d (0c649f4)
+# Commit: 16b24507bab86097b5e3f98f3940fc3a265f7d9f (16b2450)
 # Date:   2026-09-30
+# Status: QUALITY GATE FAILED
 
-QUALITY GATE: FAILED
-Code Smells:  8
-Technical Debt: 2h 15m
+## Summary
+- Code Smells:    9
+- Technical Debt: 1h 45min
+- Reliability:    B
+- Security:       A
+- Maintainability: C
+- Duplications:   6.8%
+- Coverage (new code): 86.2%
 
-Reliability Rating:  C
-Security Rating:     E
-Maintainability:     C
+## Issues Detected
 
---------------------------------------------------------------------------------
-DETECTED CODE SMELLS (REAL FILE:LINE REFERENCES)
---------------------------------------------------------------------------------
+### backend/app/security.py
+- [MAJOR] python:S1192 (line 206) — Duplicated string literal "PARTNER"
+  (also appears in app/routers/partner.py:25,31, app/services/partner_service.py:83)
+- [MAJOR] python:S3776 (line 217) — Cognitive Complexity of `verify_signature` is 18 (max allowed 15)
 
-1. [CRITICAL] python:S1192 — Define a constant instead of duplicating literal "PARTNER", "read-only", "pending", "confirmed"
-   - backend/app/security.py:201        (if user.role != "PARTNER" or user.org_id is None:)
-   - backend/app/routers/partner.py:24  (if user.role != "PARTNER":)
-   - backend/app/routers/partner.py:32  ("details": {..., "role": "PARTNER"})
-   - backend/app/services/partner_service.py:36  (unused_mode_label = "read-only")
-   - backend/app/services/partner_service.py:76  ("details": {..., "mode": "read-only", "role": "PARTNER"})
-   - backend/app/services/partner_service.py:114 (status_label = "pending")
-   - backend/app/services/partner_service.py:127 (status_label = "confirmed")
-   - backend/app/services/partner_service.py:157 ("PARTNER")
-   - backend/app/services/partner_service.py:169 (if commitment.status in ("pending", "confirmed", "rejected"):)
+### backend/app/services/partner_service.py
+- [CRITICAL] python:S1192 (line 102) — Duplicated string literal "pending" (also in models.py:130, constants.py:8)
+- [MAJOR] python:S138 (line 63) — Function `create_commitment` has 57 lines (>30 max)
+- [MAJOR] python:S107 (line 63) — Function `create_commitment` has 7 parameters (max 6)
+- [MINOR] python:S1172 (line 70) — Unused parameter `notify` (only used in swallowed try/except)
+- [MINOR] python:S1854 (line 85) — Dead store: variable `existing` checked in unfactored query block
 
-2. [MAJOR] python:S138 — Function 'create_commitment' has 46 lines, which is greater than the 30 lines authorized
-   - backend/app/services/partner_service.py:112-158 (def create_commitment(self, org_id: int, payload: CommitmentCreate) -> PartnerCommitment:)
+### backend/app/routers/partner.py
+- [MINOR] python:S1481 (line 25) — Unused local variable `unused_role_check`
+- [MINOR] python:S112  (line 32) — Generic exception raised (`raise Exception("Unauthorized role")` and bare `except Exception: pass` in partner_service.py:116)
 
-3. [MAJOR] python:S3776 — Refactor function 'verify_commitment' to reduce its Cognitive Complexity from 28 to the 15 allowed
-   - backend/app/services/partner_service.py:160-193 (deeply nested 7-level if/else pyramid in verify_commitment)
-
-4. [MAJOR] python:S107 — Function '_audit_commitment_verbose' has 8 parameters, which is greater than the 7 authorized
-   - backend/app/services/partner_service.py:81-91 (def _audit_commitment_verbose(self, org_id, period_start, period_end, capacity, nonce, signature, status_str, actor_role))
-
-5. [MINOR] python:S1172 — Remove the unused function parameter 'debug_flag'
-   - backend/app/services/partner_service.py:33 (def anonymize_forecast(self, region: str, period: str = "2026-W40", k: int = 5, debug_flag: bool = False))
-
-6. [MINOR] python:S1481 — Remove the unused local variable 'unused_mode_label' and '_legacy_cache_key'
-   - backend/app/services/partner_service.py:36 (unused_mode_label = "read-only")
-   - backend/app/services/partner_service.py:37 (_legacy_cache_key = hashlib.md5(...).hexdigest())
-
-7. [MINOR] python:S1854 — Remove this useless assignment to local variable 'status_label' (dead store)
-   - backend/app/services/partner_service.py:114 (status_label = "pending" overwritten on line 127 before being read)
-
-8. [MINOR] python:S112 — Define and throw a dedicated exception instead of using a generic 'Exception'
-   - backend/app/services/partner_service.py:116 (raise Exception("Commitment period_end must be after period_start"))
-   - backend/app/services/partner_service.py:118 (raise Exception("Committed capacity must be positive"))
+## Quality Gate: FAILED
