@@ -1,9 +1,9 @@
 """SQLAlchemy 2.0 ORM models for the Supply Chain Digital Twin."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from datetime import date, datetime, timezone
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.security import RoleEnum
@@ -24,6 +24,9 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False, default=RoleEnum.VIEWER.value)
     org_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    partner_org_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("partner_organizations.id"), nullable=True, index=True
+    )
     region: Mapped[str] = mapped_column(String(64), nullable=False, default="SOUTH")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
@@ -110,3 +113,48 @@ class AuditLog(Base):
     prev_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     signature: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+
+class PartnerOrganization(Base):
+    """External supplier partner entity scoped by unique org_id and region (CR-001)."""
+
+    __tablename__ = "partner_organizations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    org_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, index=True)
+    region: Mapped[str] = mapped_column(String(64), nullable=False, default="SOUTH", index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+    commitments: Mapped[list[PartnerCommitment]] = relationship(
+        "PartnerCommitment",
+        back_populates="partner_org",
+        cascade="all, delete-orphan",
+    )
+
+
+class PartnerCommitment(Base):
+    """Cryptographically signed weekly supplier capacity commitment with replay-safe nonce (CR-001)."""
+
+    __tablename__ = "partner_commitments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    partner_org_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("partner_organizations.org_id"),
+        nullable=False,
+        index=True,
+    )
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    committed_capacity: Mapped[float] = mapped_column(Numeric(12, 2, asdecimal=False), nullable=False)
+    signature: Mapped[str] = mapped_column(String(128), nullable=False)
+    nonce: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="confirmed")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+    partner_org: Mapped[PartnerOrganization | None] = relationship(
+        "PartnerOrganization",
+        back_populates="commitments",
+    )

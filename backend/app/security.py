@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from functools import wraps
+import hashlib
+import hmac
 from typing import Any, Callable
 import uuid
 
@@ -26,6 +28,7 @@ class RoleEnum(StrEnum):
     ADMIN = "ADMIN"
     PLANNER = "PLANNER"
     VIEWER = "VIEWER"
+    PARTNER = "PARTNER"
 
 
 class TokenTypeEnum(StrEnum):
@@ -33,6 +36,26 @@ class TokenTypeEnum(StrEnum):
 
     ACCESS = "access"
     REFRESH = "refresh"
+
+
+class AuthenticatedUser(dict[str, Any]):
+    """Dictionary-compatible principal object supporting attribute access (user.role, user.org_id)."""
+
+    @property
+    def sub(self) -> str:
+        return str(self.get("sub", ""))
+
+    @property
+    def role(self) -> str:
+        return str(self.get("role", ""))
+
+    @property
+    def org_id(self) -> Any:
+        return self.get("org_id")
+
+    @property
+    def region(self) -> str:
+        return str(self.get("region", "SOUTH"))
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -68,7 +91,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def _build_jwt(
     subject: str,
     role: str,
-    org_id: str | None,
+    org_id: str | int | None,
     token_type: TokenTypeEnum,
     delta: timedelta,
     region: str = "SOUTH",
@@ -91,7 +114,7 @@ def _build_jwt(
 def create_access_token(
     subject: str,
     role: str,
-    org_id: str | None = None,
+    org_id: str | int | None = None,
     region: str = "SOUTH",
 ) -> str:
     """Issue a 15-minute access JWT."""
@@ -102,7 +125,7 @@ def create_access_token(
 def create_refresh_token(
     subject: str,
     role: str,
-    org_id: str | None = None,
+    org_id: str | int | None = None,
     region: str = "SOUTH",
 ) -> str:
     """Issue a 7-day refresh JWT supporting rotation."""
@@ -110,7 +133,7 @@ def create_refresh_token(
     return _build_jwt(subject, role, org_id, TokenTypeEnum.REFRESH, delta, region=region)
 
 
-def decode_token(token: str, expected_type: TokenTypeEnum = TokenTypeEnum.ACCESS) -> dict[str, Any]:
+def decode_token(token: str, expected_type: TokenTypeEnum = TokenTypeEnum.ACCESS) -> AuthenticatedUser:
     """Decode and validate a JWT, enforcing token type and revocation check."""
     try:
         payload: dict[str, Any] = jwt.decode(
@@ -123,7 +146,7 @@ def decode_token(token: str, expected_type: TokenTypeEnum = TokenTypeEnum.ACCESS
 
     if payload.get("type") != expected_type.value or payload.get("jti") in _revoked_jti:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERR_INVALID_CREDENTIALS)
-    return payload
+    return AuthenticatedUser(payload)
 
 
 def rotate_refresh_token(refresh_token: str) -> tuple[str, str]:
@@ -142,21 +165,24 @@ def rotate_refresh_token(refresh_token: str) -> tuple[str, str]:
 
 def get_current_principal(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict[str, Any]:
+) -> AuthenticatedUser:
     """Extract and validate the current authenticated principal from the Authorization header."""
     if creds is None or not creds.credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERR_INVALID_CREDENTIALS)
     return decode_token(creds.credentials, expected_type=TokenTypeEnum.ACCESS)
 
 
+get_current_user = get_current_principal
+
+
 def require_role(*allowed_roles: str) -> Callable[..., Any]:
-    """Decorator enforcing role-based access control on FastAPI route handlers."""
+    """Enforce role membership as either a route decorator or FastAPI dependency."""
     allowed_set = {str(r) for r in allowed_roles}
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            principal: dict[str, Any] | None = kwargs.get("principal")
+            principal: dict[str, Any] | None = kwargs.get("principal") or kwargs.get("user")
             if principal is None or principal.get("role") not in allowed_set:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ERR_FORBIDDEN_ROLE)
             return func(*args, **kwargs)
@@ -164,3 +190,30 @@ def require_role(*allowed_roles: str) -> Callable[..., Any]:
         return wrapper
 
     return decorator
+
+
+def get_partner_context(user: AuthenticatedUser = Depends(get_current_user)) -> dict[str, Any]:
+    """Return {'org_id': ..., 'region': ...} if user.role == PARTNER, else raise HTTPException(403)."""
+    if user.role != "PARTNER" or user.org_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Partner role with valid org_id scope is required",
+        )
+    raw_org = user.org_id
+    org_id_int = int(raw_org) if str(raw_org).isdigit() else raw_org
+    return {
+        "org_id": org_id_int,
+        "region": user.region,
+        "actor": user.sub,
+    }
+
+
+def sign_payload(payload: str, secret: str) -> str:
+    """Compute HMAC-SHA256 hex digest over payload using secret."""
+    return hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def verify_signature(payload: str, signature: str, secret: str) -> bool:
+    """Constant-time HMAC-SHA256 signature verification using hmac.compare_digest."""
+    expected = sign_payload(payload, secret)
+    return hmac.compare_digest(expected, signature)

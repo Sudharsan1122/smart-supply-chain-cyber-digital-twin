@@ -10,7 +10,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.database import Base, SessionLocal, engine
-from app.routers import audit, auth, optimization, simulation, twin
+from app.routers import audit, auth, optimization, partner, simulation, twin
 from app.services.db_service import db_service
 
 
@@ -25,8 +25,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.0.0",
-    description="Secure Supply Chain Digital Twin with MILP Optimization and Disruption Simulation",
+    version="1.1.0",
+    description="Secure Supply Chain Digital Twin with MILP Optimization, Simulation, and Partner Sharing",
     docs_url="/docs",
     lifespan=lifespan,
 )
@@ -66,4 +66,5 @@ app.include_router(auth.router)
 app.include_router(twin.router)
 app.include_router(simulation.router)
 app.include_router(optimization.router)
+app.include_router(partner.router, prefix="/api/partner", tags=["partner"])
 app.include_router(audit.router)
