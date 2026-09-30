@@ -1,11 +1,9 @@
 # Smart Supply Chain Cyber Digital Twin
 
-[![CI Pipeline](https://github.com/USER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/USER/REPO/actions/workflows/ci.yml)
-[![Deploy Pipeline](https://github.com/USER/REPO/actions/workflows/deploy.yml/badge.svg)](https://github.com/USER/REPO/actions/workflows/deploy.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
-
-> **Note:** Replace `USER/REPO` in the badge links above with your GitHub username and repository name (e.g. `Sudharsan1122/smart-supply-chain-cyber-digital-twin`).
+[![CI Pipeline](https://github.com/Sudharsan1122/smart-supply-chain-cyber-digital-twin/actions/workflows/ci.yml/badge.svg)](https://github.com/Sudharsan1122/smart-supply-chain-cyber-digital-twin/actions/workflows/ci.yml)
+[![Deploy Pipeline](https://github.com/Sudharsan1122/smart-supply-chain-cyber-digital-twin/actions/workflows/deploy.yml/badge.svg)](https://github.com/Sudharsan1122/smart-supply-chain-cyber-digital-twin/actions/workflows/deploy.yml)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Python](https://img.shields.io/badge/python-3.13-blue)
 
 An API-first cyber-physical Digital Twin platform designed to monitor, simulate, and secure distributed supply chain infrastructure. Synchronizing real-time telemetry from 32 physical and logical assets into a directed dependency graph, the system continuously runs hybrid anomaly detection (rule-based + unsupervised Isolation Forest ML), models attack blast radii, enriches threat intelligence indicators, and automates incident triage.
 
