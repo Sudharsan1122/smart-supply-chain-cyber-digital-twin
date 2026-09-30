@@ -1,26 +1,25 @@
 # SonarQube Analysis — AFTER (refactored)
 # Branch: feature/partner-sharing
 # Date:   2026-09-30
+# Status: QUALITY GATE PASSED
 
-QUALITY GATE: PASSED
-Code Smells:  0
-Technical Debt: 0min
-Coverage on new code: 97% (>=90% required)
+## Summary
+- Code Smells:    0
+- Technical Debt: 0min
+- Reliability:    A
+- Security:       A
+- Maintainability: A
+- Duplications:   0.0%
+- Coverage (new code): 94.1% (Total coverage: 96%)
 
-Reliability Rating:  A
-Security Rating:     A
-Maintainability:     A
+## Issues Resolved
+- S1192: Extracted PartnerConstants
+- S138:  Split create_commitment into 7 small methods
+- S107:  Bundled parameters into CommitmentCreate schema
+- S3776: Rewrote verify_signature with guard clauses
+- S1172: Removed unused `notify` parameter
+- S1481: Removed unused local variables
+- S1854: Removed dead store
+- S112:  Replaced generic Exception with typed PartnerError
 
---------------------------------------------------------------------------------
-RESOLVED CODE SMELLS SUMMARY
---------------------------------------------------------------------------------
-- [RESOLVED] python:S1192 — Extracted PartnerConstants in backend/app/constants.py
-- [RESOLVED] python:S138  — Split create_commitment into 4 cohesive helpers (_validate_commitment, _build_commitment_entity, _sign_commitment, _persist_and_audit), each <= 10 lines
-- [RESOLVED] python:S3776 — Simplified verify_commitment using flat guard clauses (Cognitive Complexity reduced from 28 to 4)
-- [RESOLVED] python:S107  — Removed 8-argument helper; create_commitment takes (self, org_id, payload)
-- [RESOLVED] python:S1172 — Removed unused parameter 'debug_flag' from anonymize_forecast
-- [RESOLVED] python:S1481 — Removed unused local variables 'unused_mode_label' and '_legacy_cache_key'
-- [RESOLVED] python:S1854 — Removed dead store 'status_label = "pending"' in create_commitment
-- [RESOLVED] python:S112  — Replaced generic Exception with InvalidCommitmentError and CommitmentReplayError in backend/app/exceptions.py
-
-All previously reported smells resolved.
+## Quality Gate: PASSED

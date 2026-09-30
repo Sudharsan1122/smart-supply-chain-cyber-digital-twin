@@ -1,51 +1,32 @@
-Run started:2026-09-30 16:12:58.836775+00:00
+Run started:2026-09-30 17:39:23.152836+00:00
 
 Test results:
->> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'cr001-legacy-hardcoded-hmac-secret-key'
-   Severity: Low   Confidence: Medium
-   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
-   Location: app/services\partner_service.py:24:26
-23	# Intentional Bandit B105 / Sonar S2068 finding in initial commit (to be removed in Step 5)
-24	FALLBACK_SIGNING_SECRET = "cr001-legacy-hardcoded-hmac-secret-key"
-25	
-
---------------------------------------------------
->> Issue: [B324:hashlib] Use of weak MD5 hash for security. Consider usedforsecurity=False
-   Severity: High   Confidence: High
-   CWE: CWE-327 (https://cwe.mitre.org/data/definitions/327.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html
-   Location: app/services\partner_service.py:37:28
-36	        unused_mode_label = "read-only"  # S1481 unused local variable + S1192 duplicated literal
-37	        _legacy_cache_key = hashlib.md5(f"{region}:{period}".encode("utf-8")).hexdigest()  # B324 HIGH in Bandit-before
-38	        nodes = list(
-
---------------------------------------------------
->> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
    Severity: Low   Confidence: High
    CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b101_assert_used.html
-   Location: app/services\partner_service.py:145:8
-144	        )
-145	        assert entity is not None  # Intentional Bandit B101 assert_used finding for Step 4
-146	        self.db.add(entity)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: app/services\partner_service.py:116:12
+115	                )
+116	            except Exception:
+117	                pass  # SMELL: swallowed generic exception (S110 / S112)
+118	
 
 --------------------------------------------------
 
 Code scanned:
-	Total lines of code: 1822
+	Total lines of code: 1789
 	Total lines skipped (#nosec): 0
 	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 2
 
 Run metrics:
 	Total issues (by severity):
 		Undefined: 0
-		Low: 2
+		Low: 1
 		Medium: 0
-		High: 1
+		High: 0
 	Total issues (by confidence):
 		Undefined: 0
 		Low: 0
-		Medium: 1
-		High: 2
+		Medium: 0
+		High: 1
 Files skipped (0):

@@ -1,4 +1,4 @@
-"""Pytest fixtures providing isolated test database sessions, seeded network, and RBAC JWT headers."""
+"""Pytest fixtures providing isolated test database sessions, seeded network, and RBAC JWT tokens/headers."""
 from __future__ import annotations
 
 from collections.abc import Generator
@@ -49,28 +49,44 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture()
-def planner_headers() -> dict[str, str]:
-    """Return Authorization header for an authenticated PLANNER user."""
-    tok = create_access_token("planner_user", RoleEnum.PLANNER.value, None)
-    return {"Authorization": f"Bearer {tok}"}
+def planner_token() -> str:
+    """Return raw JWT for an authenticated PLANNER user."""
+    return create_access_token("planner_user", RoleEnum.PLANNER.value, None)
 
 
 @pytest.fixture()
-def admin_headers() -> dict[str, str]:
-    """Return Authorization header for an authenticated ADMIN user."""
-    tok = create_access_token("admin_user", RoleEnum.ADMIN.value, None)
-    return {"Authorization": f"Bearer {tok}"}
+def admin_token() -> str:
+    """Return raw JWT for an authenticated ADMIN user."""
+    return create_access_token("admin_user", RoleEnum.ADMIN.value, None)
 
 
 @pytest.fixture()
-def viewer_headers() -> dict[str, str]:
-    """Return Authorization header for an authenticated VIEWER user."""
-    tok = create_access_token("viewer_user", RoleEnum.VIEWER.value, None)
-    return {"Authorization": f"Bearer {tok}"}
+def viewer_token() -> str:
+    """Return raw JWT for an authenticated VIEWER user."""
+    return create_access_token("viewer_user", RoleEnum.VIEWER.value, None)
 
 
 @pytest.fixture()
-def partner_headers() -> dict[str, str]:
-    """Return Authorization header for an authenticated PARTNER scoped to org_id=101 (SOUTH)."""
-    tok = create_access_token("partner_user", RoleEnum.PARTNER.value, 101, region="SOUTH")
-    return {"Authorization": f"Bearer {tok}"}
+def partner_token() -> str:
+    """Return raw JWT for an authenticated PARTNER user scoped to org_id='101' (SOUTH)."""
+    return create_access_token("partner_user", RoleEnum.PARTNER.value, "101", region="SOUTH")
+
+
+@pytest.fixture()
+def planner_headers(planner_token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {planner_token}"}
+
+
+@pytest.fixture()
+def admin_headers(admin_token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {admin_token}"}
+
+
+@pytest.fixture()
+def viewer_headers(viewer_token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {viewer_token}"}
+
+
+@pytest.fixture()
+def partner_headers(partner_token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {partner_token}"}

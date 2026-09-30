@@ -1,9 +1,10 @@
 """Pydantic v2 Data Transfer Objects (DTOs) with strict input validation."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.security import RoleEnum
 
@@ -165,8 +166,6 @@ class AuditLogRead(BaseModel):
 
 
 class PartnerForecastResponse(BaseModel):
-    """Anonymized regional demand forecast DTO for external partners (CR-001)."""
-
     region: str
     period: str
     aggregated_demand: float
@@ -174,21 +173,23 @@ class PartnerForecastResponse(BaseModel):
 
 
 class CommitmentCreate(BaseModel):
-    """Request payload for submitting a weekly supplier capacity commitment (CR-001)."""
+    period_start: datetime
+    period_end: datetime
+    committed_capacity: Decimal = Field(gt=0)
+    nonce: str | None = Field(default=None)
 
-    period_start: date
-    period_end: date
-    committed_capacity: float = Field(gt=0.0, le=1_000_000.0)
-    nonce: str | None = Field(default=None, min_length=4, max_length=64)
+    @field_validator("period_end")
+    @classmethod
+    def end_after_start(cls, v: datetime, info: object) -> datetime:
+        data = getattr(info, "data", {})
+        if "period_start" in data and v <= data["period_start"]:
+            raise ValueError("period_end must be after period_start")
+        return v
 
 
 class CommitmentResponse(BaseModel):
-    """Signed confirmation receipt for a partner capacity commitment (CR-001)."""
-
     model_config = ConfigDict(from_attributes=True)
     id: int
     status: str
     signature: str
     created_at: datetime
-    partner_org_id: int | None = None
-    committed_capacity: float | None = None
