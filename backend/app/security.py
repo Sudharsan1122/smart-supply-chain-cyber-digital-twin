@@ -1,0 +1,166 @@
+"""Authentication, JWT rotation, bcrypt hashing, AES-256 field encryption, and RBAC."""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from enum import StrEnum
+from functools import wraps
+from typing import Any, Callable
+import uuid
+
+import bcrypt
+from cryptography.fernet import Fernet
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
+
+from app.config import settings
+
+BCRYPT_ROUNDS = 12
+ERR_INVALID_CREDENTIALS = "Invalid or expired authentication token"
+ERR_FORBIDDEN_ROLE = "Insufficient role privileges for this operation"
+
+
+class RoleEnum(StrEnum):
+    """Role enumeration eliminating magic role strings across the codebase."""
+
+    ADMIN = "ADMIN"
+    PLANNER = "PLANNER"
+    VIEWER = "VIEWER"
+
+
+class TokenTypeEnum(StrEnum):
+    """JWT token type discriminator."""
+
+    ACCESS = "access"
+    REFRESH = "refresh"
+
+
+bearer_scheme = HTTPBearer(auto_error=False)
+_revoked_jti: set[str] = set()
+
+
+def _get_cipher() -> Fernet:
+    """Initialize AES-256 Fernet cipher from environment key."""
+    return Fernet(settings.fernet_key.encode("utf-8"))
+
+
+def encrypt_sensitive(plaintext: str) -> str:
+    """Encrypt sensitive string data at rest using Fernet."""
+    return _get_cipher().encrypt(plaintext.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_sensitive(ciphertext: str) -> str:
+    """Decrypt sensitive ciphertext string from storage."""
+    return _get_cipher().decrypt(ciphertext.encode("utf-8")).decode("utf-8")
+
+
+def hash_password(plain_password: str) -> str:
+    """Hash a user password using bcrypt with cost factor 12."""
+    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
+    return bcrypt.hashpw(plain_password.encode("utf-8"), salt).decode("utf-8")
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plaintext password against a stored bcrypt hash."""
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+
+
+def _build_jwt(
+    subject: str,
+    role: str,
+    org_id: str | None,
+    token_type: TokenTypeEnum,
+    delta: timedelta,
+    region: str = "SOUTH",
+) -> str:
+    """Create a signed JWT with expiration and unique JTI."""
+    now = datetime.now(timezone.utc)
+    claims: dict[str, Any] = {
+        "sub": subject,
+        "role": role,
+        "org_id": org_id,
+        "region": region,
+        "type": token_type.value,
+        "jti": str(uuid.uuid4()),
+        "iat": int(now.timestamp()),
+        "exp": int((now + delta).timestamp()),
+    }
+    return jwt.encode(claims, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def create_access_token(
+    subject: str,
+    role: str,
+    org_id: str | None = None,
+    region: str = "SOUTH",
+) -> str:
+    """Issue a 15-minute access JWT."""
+    delta = timedelta(minutes=settings.access_token_expire_minutes)
+    return _build_jwt(subject, role, org_id, TokenTypeEnum.ACCESS, delta, region=region)
+
+
+def create_refresh_token(
+    subject: str,
+    role: str,
+    org_id: str | None = None,
+    region: str = "SOUTH",
+) -> str:
+    """Issue a 7-day refresh JWT supporting rotation."""
+    delta = timedelta(days=settings.refresh_token_expire_days)
+    return _build_jwt(subject, role, org_id, TokenTypeEnum.REFRESH, delta, region=region)
+
+
+def decode_token(token: str, expected_type: TokenTypeEnum = TokenTypeEnum.ACCESS) -> dict[str, Any]:
+    """Decode and validate a JWT, enforcing token type and revocation check."""
+    try:
+        payload: dict[str, Any] = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+        )
+    except JWTError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERR_INVALID_CREDENTIALS) from exc
+
+    if payload.get("type") != expected_type.value or payload.get("jti") in _revoked_jti:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERR_INVALID_CREDENTIALS)
+    return payload
+
+
+def rotate_refresh_token(refresh_token: str) -> tuple[str, str]:
+    """Invalidate a used refresh token and issue a fresh access + refresh token pair."""
+    payload = decode_token(refresh_token, expected_type=TokenTypeEnum.REFRESH)
+    _revoked_jti.add(str(payload.get("jti")))
+    sub = str(payload["sub"])
+    role = str(payload["role"])
+    org_id = payload.get("org_id")
+    region = str(payload.get("region", "SOUTH"))
+    return (
+        create_access_token(sub, role, org_id, region=region),
+        create_refresh_token(sub, role, org_id, region=region),
+    )
+
+
+def get_current_principal(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, Any]:
+    """Extract and validate the current authenticated principal from the Authorization header."""
+    if creds is None or not creds.credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERR_INVALID_CREDENTIALS)
+    return decode_token(creds.credentials, expected_type=TokenTypeEnum.ACCESS)
+
+
+def require_role(*allowed_roles: str) -> Callable[..., Any]:
+    """Decorator enforcing role-based access control on FastAPI route handlers."""
+    allowed_set = {str(r) for r in allowed_roles}
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            principal: dict[str, Any] | None = kwargs.get("principal")
+            if principal is None or principal.get("role") not in allowed_set:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ERR_FORBIDDEN_ROLE)
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
