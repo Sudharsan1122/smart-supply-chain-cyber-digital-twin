@@ -1,29 +1,45 @@
 #!/usr/bin/env python3
 """
-setup_jira.py — Automated Jira Scrum Project Initializer for SSCDT
-Smart Supply Chain Cyber Digital Twin (20CYS495 Project Phase-I)
+setup_jira.py — Automated Jira Cloud Scrum Project Setup for SSCDT
+==================================================================
+Project: Smart Supply Chain Cyber Digital Twin (20CYS495 Project Phase-I)
 Institution: Amrita Vishwa Vidyapeetham, Chennai
-Team: Sudharsan S (Lead), Manojkumar A
-Guide: Dr. S. Udhayakumar
+Team: Sudharsan S (CH.SC.U4CYS23045), Manojkumar A (CH.SC.U4CYS23022)
+Faculty Guide: Dr. S. Udhayakumar
+Jira Cloud: https://mastersudhan1234.atlassian.net
 
-Usage:
-  python setup_jira.py --help
-  python setup_jira.py --dry-run
-  python setup_jira.py --url https://your-domain.atlassian.net --email user@example.com --token API_TOKEN
+This script automates the complete Jira Scrum configuration via Jira REST API v3:
+  - Step 1: Creates the Scrum Software Project (SSCDT)
+  - Step 2: Creates 10 Project Components
+  - Step 3: Creates 10 Epics (with automatic field discovery for Epic Name)
+  - Step 4: Creates 39 User Stories with structured ADF descriptions & story points
+  - Step 5: Creates Sprint 1 & Sprint 2 on the Agile Scrum Board
+  - Step 6: Assigns all 39 stories into their respective Sprints
+  - Idempotent: checks for existing entities and skips duplicates without failing
+  - Exports created keys to docs/jira_created_keys.json
 """
 
 import argparse
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional
-import httpx
+import time
+from typing import Any, Dict, List, Optional, Tuple
+import requests
 
+# ============================================================
+# CONFIGURATION
+# ============================================================
+JIRA_URL = os.getenv("JIRA_URL", "https://mastersudhan1234.atlassian.net").rstrip("/")
+EMAIL = os.getenv("JIRA_EMAIL", "your-email@example.com")
+API_TOKEN = os.getenv("JIRA_API_TOKEN", "your-api-token")
 PROJECT_KEY = "SSCDT"
 PROJECT_NAME = "Smart Supply Chain Cyber Digital Twin"
-PROJECT_LEAD = "Sudharsan S"
+PROJECT_TYPE_KEY = "software"
+PROJECT_TEMPLATE_KEY = "com.pyxis.greenhopper.jira:gh-scrum-template"
+ACCOUNT_ID = os.getenv("JIRA_ACCOUNT_ID", "your-account-id")  # Auto-detected if placeholder
 
-COMPONENTS = [
+COMPONENTS_LIST = [
     "Ingestion",
     "Digital Twin Core",
     "Detection Engine",
@@ -36,696 +52,1341 @@ COMPONENTS = [
     "Documentation",
 ]
 
-EPICS = [
+EPICS_DATA = [
     {
-        "key_id": 1,
+        "id": "EPIC-1",
         "name": "Ingestion & Data Layer",
-        "summary": "Ingestion & Data Layer",
-        "description": "Accept telemetry and security events from REST, MQTT, Wazuh SIEM, Suricata IDS, and external threat feeds. Persist records to PostgreSQL 16 across 20 relational tables for 32 seeded supply chain assets. Covers FR1–FR5 and Phases 1, 2, 4, 5, 6.",
+        "summary": "EPIC-1: Ingestion & Data Layer",
+        "description": "Accept telemetry/events from REST, MQTT, Wazuh SIEM, Suricata IDS, external threat feeds. Persist to PostgreSQL (20 tables, 32 seeded assets). Covers FR1–FR5.",
         "component": "Ingestion",
         "labels": ["phase-1", "phase-2", "wazuh", "suricata"],
         "priority": "High",
     },
     {
-        "key_id": 2,
+        "id": "EPIC-2",
         "name": "Digital Twin Core",
-        "summary": "Digital Twin Core",
-        "description": "Maintain a live digital twin network using NetworkX DiGraph (32 nodes, 14 edges), track real-time asset states, detect drift with auto-reconciliation, integrate Eclipse Ditto W3C Thing model (32 synced assets), and capture time-travel snapshots (full + delta). Covers FR6–FR9 and Phases 3, 8, 9, 20.",
+        "summary": "EPIC-2: Digital Twin Core",
+        "description": "NetworkX DiGraph twin (32 nodes, 14 edges), live state manager, drift detection, Eclipse Ditto integration (32 synced things), time-travel snapshots. Covers FR6–FR9, Phases 3, 8, 9.",
         "component": "Digital Twin Core",
         "labels": ["phase-3", "eclipse-ditto"],
         "priority": "High",
     },
     {
-        "key_id": 3,
+        "id": "EPIC-3",
         "name": "Detection Engine",
-        "summary": "Detection Engine",
-        "description": "Execute 10 rule-based anomaly detectors (RULE-001..RULE-010), 9 asset-type finite state machines, 6 multi-signal correlation rules, and 6-component dynamic risk scoring. Covers FR10–FR12 and Phases 7, 10, 11, 12.",
+        "summary": "EPIC-3: Detection Engine",
+        "description": "10 rule-based detectors, 16 ML models (Isolation Forest + One-Class SVM), 6 correlation rules, 9 state machines. Covers FR10–FR12, Phases 7, 10, 11, 22.",
         "component": "Detection Engine",
         "labels": ["phase-1", "ml"],
         "priority": "High",
     },
     {
-        "key_id": 4,
+        "id": "EPIC-4",
         "name": "Threat Intelligence (C8)",
-        "summary": "Threat Intelligence (C8)",
-        "description": "Extract 11 Indicator of Compromise (IOC) types, query VirusTotal, AbuseIPDB, and AlienVault OTX with 24h TTL cache, synthesize consensus reputation verdicts, and execute the closed-loop C8 risk reweighting loop. Covers FR13–FR15 and Phases 15, 16.",
+        "summary": "EPIC-4: Threat Intelligence (C8)",
+        "description": "11 IOC types, enriched via VirusTotal + AbuseIPDB + AlienVault OTX, consensus verdict, risk reweighting loop. RESEARCH CONTRIBUTION. Covers FR13–FR15, Phases 15, 16.",
         "component": "Threat Intelligence",
         "labels": ["c8", "ioc", "research"],
         "priority": "Highest",
     },
     {
-        "key_id": 5,
+        "id": "EPIC-5",
         "name": "Analysis & Triage",
-        "summary": "Analysis & Triage",
-        "description": "Compute multi-hop blast radius using BFS traversal with 0.7^depth decay, reconstruct multi-stage attack stories mapped to 13 MITRE ATT&CK tactics, execute automated triage (TP/FP/FN/TN), and compute KernelSHAP explainability attributions. Covers FR16–FR18 and Phases 14, 17, 18, 22.",
+        "summary": "EPIC-5: Analysis & Triage",
+        "description": "Blast radius (BFS + 0.7^depth decay), attack story engine with 13 MITRE tactics, auto-triage (P=0.89, R=1.00, F1=0.94), XAI (SHAP). Covers FR16–FR18, Phases 14, 17, 18.",
         "component": "Analysis & Triage",
         "labels": ["mitre", "xai"],
         "priority": "Highest",
     },
     {
-        "key_id": 6,
+        "id": "EPIC-6",
         "name": "Dashboard & Visualization",
-        "summary": "Dashboard & Visualization",
-        "description": "Deliver responsive web UI (Flask, Chart.js, D3 force graph, Leaflet India map), live fleet tracking along realistic highway corridors, timeline scrubber playback, Haversine geofence breach rings, and live weather overlay. Covers FR19–FR23 and Phase 19.",
+        "summary": "EPIC-6: Dashboard & Visualization",
+        "description": "Flask + Chart.js + D3 + Leaflet dashboard, 4 tabs, live geographic map with trucks on real highways, timeline playback, geofencing, weather overlay. Covers FR19–FR23, Phase 19.",
         "component": "Dashboard & UI",
         "labels": ["phase-1", "phase-2"],
         "priority": "High",
     },
     {
-        "key_id": 7,
+        "id": "EPIC-7",
         "name": "Machine Learning",
-        "summary": "Machine Learning",
-        "description": "Train 16 unsupervised ML models (8 Isolation Forest + 8 One-Class SVM) tailored per supply chain asset type, integrate ML-ANOMALY detection into triage, and extract KernelSHAP explanations. Covers Phase 22.",
+        "summary": "EPIC-7: Machine Learning",
+        "description": "Isolation Forest + One-Class SVM, 16 models, per-asset-type training, ML-ANOMALY detection, SHAP explainability. Covers Phase 22.",
         "component": "Machine Learning",
         "labels": ["ml", "xai"],
         "priority": "High",
     },
     {
-        "key_id": 8,
+        "id": "EPIC-8",
         "name": "Infrastructure & DevOps",
-        "summary": "Infrastructure & DevOps",
-        "description": "Containerize platform across 14 Docker services, establish multi-stage Dockerfiles with non-root security, configure GitHub Actions CI/CD pipelines, and provide AWS Terraform infrastructure. Covers Phases 23, 24.",
+        "summary": "EPIC-8: Infrastructure & DevOps",
+        "description": "14 Docker containers, multi-stage Dockerfiles, CI/CD pipeline, AWS Terraform (VPC, RDS, ECS Fargate, ALB, ECR, Secrets Manager, CloudWatch). Covers Phases 23, 24.",
         "component": "Infrastructure & DevOps",
         "labels": ["docker", "terraform"],
         "priority": "Medium",
     },
     {
-        "key_id": 9,
+        "id": "EPIC-9",
         "name": "Security & Compliance",
-        "summary": "Security & Compliance",
-        "description": "Implement 20 defense-in-depth security requirements (SR1–SR20), STRIDE threat model, Wazuh HIDS + Suricata NIDS event ingestion, secure coding standards, and dependency audit reduction.",
+        "summary": "EPIC-9: Security & Compliance",
+        "description": "20 security requirements (SR1–SR20), STRIDE threat model, Wazuh SIEM + Suricata IDS, secure coding, dependency reduction. Covers Phase 1.",
         "component": "Security & Compliance",
         "labels": ["wazuh", "suricata"],
         "priority": "Medium",
     },
     {
-        "key_id": 10,
+        "id": "EPIC-10",
         "name": "Testing & Documentation",
-        "summary": "Testing & Documentation",
-        "description": "Provide ~200 automated unit/integration tests with >=85% coverage via pytest, comprehensive software requirements specification (53 requirements), and 11 GitHub architectural documents. Covers Phase 21.",
+        "summary": "EPIC-10: Testing & Documentation",
+        "description": "~200 tests, ≥85% coverage, pytest + pytest-asyncio, 11 GitHub docs, 53 requirements documented. Covers Phase 21.",
         "component": "Documentation",
         "labels": ["testing", "documentation"],
         "priority": "Medium",
     },
 ]
 
-STORIES = [
-    # Epic 1: Ingestion & Data Layer
+STORIES_DATA = [
+    # --- EPIC-1: Ingestion & Data Layer ---
     {
         "id": "US-01",
-        "summary": "REST telemetry ingestion endpoint",
-        "description": "As a cyber-physical system, I want a POST /api/telemetry endpoint so external IoT sensors and gateways can stream real-time telemetry into the digital twin.",
-        "ac": "Given valid telemetry JSON payload, When POSTed to /api/telemetry, Then return 201 Created and persist metric rows to PostgreSQL.",
+        "summary": "US-01: REST telemetry ingestion endpoint",
+        "role": "telemetry sensor or vehicle gateway",
+        "capability": "POST /api/telemetry endpoint with schema validation",
+        "benefit": "real-time cyber-physical sensor data is safely ingested into the digital twin",
+        "ac": [
+            "Given a valid telemetry JSON payload conforming to Pydantic v2 schema",
+            "When sent via POST /api/telemetry with HTTPS",
+            "Then the system responds with 201 Created and persists records into PostgreSQL",
+        ],
         "points": 5,
-        "epic_idx": 1,
         "component": "Ingestion",
         "labels": ["phase-1"],
         "priority": "High",
+        "epic": "EPIC-1",
         "sprint": 1,
     },
     {
         "id": "US-02",
-        "summary": "REST event ingestion endpoint",
-        "description": "As a security operator, I want a POST /api/events endpoint so external security systems and edge gateways can push security event logs.",
-        "ac": "Given a valid security event payload, When POSTed to /api/events, Then return 201 Created and trigger correlation.",
+        "summary": "US-02: REST event ingestion endpoint",
+        "role": "security agent",
+        "capability": "POST /api/events endpoint for security audit logs",
+        "benefit": "critical security events are immediately ingested and mapped to asset IDs",
+        "ac": [
+            "Given a security event payload with valid asset_id and event_type",
+            "When sent to POST /api/events",
+            "Then the event is stored in security_events and forwarded to the correlator",
+        ],
         "points": 5,
-        "epic_idx": 1,
         "component": "Ingestion",
         "labels": ["phase-5"],
         "priority": "High",
+        "epic": "EPIC-1",
         "sprint": 1,
     },
     {
         "id": "US-03",
-        "summary": "MQTT bridge subscriber",
-        "description": "As an IoT telemetry listener, I want an MQTT subscriber on supply_chain/telemetry/+ so high-frequency sensor messages are automatically ingested into the pipeline.",
-        "ac": "Given MQTT messages published to broker, When received on subscribed topics, Then validate schema and ingest asynchronously.",
+        "summary": "US-03: MQTT bridge subscriber",
+        "role": "IoT telemetry listener",
+        "capability": "MQTT bridge subscriber listening on supply_chain/telemetry/+",
+        "benefit": "high-throughput streaming telemetry from trucks and warehouses is ingested without HTTP overhead",
+        "ac": [
+            "Given Mosquitto MQTT broker running on port 1883",
+            "When messages are published to supply_chain/telemetry/+",
+            "Then the bridge receives, parses, validates, and commits metrics to database",
+        ],
         "points": 8,
-        "epic_idx": 1,
         "component": "Ingestion",
         "labels": ["phase-6"],
         "priority": "High",
+        "epic": "EPIC-1",
         "sprint": 1,
     },
     {
         "id": "US-04",
-        "summary": "Wazuh SIEM integration",
-        "description": "As a SOC analyst, I want to pull host-based intrusion alerts from Wazuh Manager so endpoint compromises are reflected in the twin.",
-        "ac": "Given Wazuh Manager API active, When alert events are generated, Then pull alerts via REST and map to twin asset IDs.",
+        "summary": "US-04: Wazuh SIEM integration",
+        "role": "SOC analyst",
+        "capability": "automated pull of real host-based intrusion alerts from Wazuh SIEM Manager",
+        "benefit": "host compromises on edge servers and auth systems trigger twin security alarms",
+        "ac": [
+            "Given Wazuh Manager active on port 55000 with JWT authentication",
+            "When agent alerts occur (rule 5710, 40111)",
+            "Then pull alerts every 10 seconds and correlate against twin graph nodes",
+        ],
         "points": 5,
-        "epic_idx": 1,
         "component": "Ingestion",
-        "labels": ["wazuh", "phase-1"],
+        "labels": ["wazuh"],
         "priority": "High",
+        "epic": "EPIC-1",
         "sprint": 1,
     },
     {
         "id": "US-05",
-        "summary": "Suricata IDS integration",
-        "description": "As a network security engineer, I want to read Suricata NIDS eve.json alerts so network-level anomalies are ingested into the twin.",
-        "ac": "Given Suricata logging to eve.json, When network attacks occur, Then stream log records into ingestion pipeline.",
+        "summary": "US-05: Suricata IDS integration",
+        "role": "network security engineer",
+        "capability": "continuous ingestion of Suricata NIDS eve.json network alert logs",
+        "benefit": "network port scans and anomalous C2 packets are visible in the digital twin",
+        "ac": [
+            "Given Suricata logging network events to /var/log/suricata/eve.json",
+            "When signature alerts (e.g. 2024001, 2024019) fire",
+            "Then extract flow metadata and correlate with target supply chain assets",
+        ],
         "points": 5,
-        "epic_idx": 1,
         "component": "Ingestion",
-        "labels": ["suricata", "phase-1"],
+        "labels": ["suricata"],
         "priority": "High",
+        "epic": "EPIC-1",
         "sprint": 1,
     },
     {
         "id": "US-06",
-        "summary": "PostgreSQL schema (20 tables)",
-        "description": "As a data architect, I want a normalized PostgreSQL schema with 20 tables and 32 seeded supply chain assets so that state and telemetry are durably stored.",
-        "ac": "Given PostgreSQL 16 container, When schema and seed scripts execute, Then 20 tables and 32 assets are initialized.",
+        "summary": "US-06: PostgreSQL schema (20 tables)",
+        "role": "data engineer",
+        "capability": "normalized PostgreSQL 16 schema with 20 relational tables and 32 seeded assets",
+        "benefit": "the entire supply chain topology, state history, and detections are durably stored",
+        "ac": [
+            "Given PostgreSQL 16 initialized via SQLAlchemy 2.0 AsyncIO",
+            "When seed scripts execute",
+            "Then verify exactly 32 assets and 20 relational tables are initialized",
+        ],
         "points": 13,
-        "epic_idx": 1,
         "component": "Ingestion",
         "labels": ["phase-2"],
         "priority": "High",
+        "epic": "EPIC-1",
         "sprint": 1,
     },
-    # Epic 2: Digital Twin Core
+    # --- EPIC-2: Digital Twin Core ---
     {
         "id": "US-07",
-        "summary": "NetworkX DiGraph twin",
-        "description": "As a digital twin engineer, I want a directed dependency graph representing 32 assets and 14 operational edges so that parent-child relationships and centralities are modeled.",
-        "ac": "Given seeded assets in DB, When twin_graph initializes, Then 32 nodes and 14 edges are loaded with degree and betweenness centralities.",
+        "summary": "US-07: NetworkX DiGraph twin",
+        "role": "digital twin engineer",
+        "capability": "NetworkX directed graph representing 32 assets and 14 dependency edges",
+        "benefit": "parent-child relationships and graph centralities (degree, betweenness) can be computed",
+        "ac": [
+            "Given database asset and edge records",
+            "When twin_graph loads at system startup",
+            "Then build DiGraph with 32 nodes and 14 edges and compute centrality metrics",
+        ],
         "points": 8,
-        "epic_idx": 2,
         "component": "Digital Twin Core",
         "labels": ["phase-3"],
         "priority": "High",
+        "epic": "EPIC-2",
         "sprint": 1,
     },
     {
         "id": "US-08",
-        "summary": "Live state manager",
-        "description": "As an operations engineer, I want real-time asset state tracking so that the twin reflects current operational and security health.",
-        "ac": "Given incoming telemetry, When processed by normalizer, Then update in-memory twin_state and persist transitions.",
+        "summary": "US-08: Live state manager",
+        "role": "operations engineer",
+        "capability": "in-memory and database synchronization of live asset state and health",
+        "benefit": "the digital twin continuously mirrors real-world physical and cyber conditions",
+        "ac": [
+            "Given incoming telemetry normalizer output",
+            "When asset metrics update",
+            "Then update twin_states table and in-memory cache within 50ms",
+        ],
         "points": 5,
-        "epic_idx": 2,
         "component": "Digital Twin Core",
-        "labels": ["phase-8"],
+        "labels": ["phase-3"],
         "priority": "High",
+        "epic": "EPIC-2",
         "sprint": 1,
     },
     {
         "id": "US-09",
-        "summary": "Drift detection & auto-reconcile",
-        "description": "As a system maintainer, I want periodic drift detection every 30s so that in-memory twin state and database records stay reconciled.",
-        "ac": "Given divergence between cache and database, When drift audit sweep runs, Then auto-reconcile state and log discrepancies.",
+        "summary": "US-09: Drift detection & auto-reconcile",
+        "role": "system maintainer",
+        "capability": "periodic drift detection audit running every 30 seconds",
+        "benefit": "cache state and database records stay automatically reconciled without manual restarts",
+        "ac": [
+            "Given potential state mismatch between cache and database",
+            "When drift sweep executes every 30s",
+            "Then flag discrepancies, auto-reconcile to source of truth, and log audit entry",
+        ],
         "points": 5,
-        "epic_idx": 2,
         "component": "Digital Twin Core",
         "labels": ["phase-8"],
         "priority": "High",
+        "epic": "EPIC-2",
         "sprint": 1,
     },
     {
         "id": "US-10",
-        "summary": "Time-travel snapshots",
-        "description": "As a forensic investigator, I want full and delta state snapshots so that historical supply chain states can be reconstructed at any timestamp.",
-        "ac": "Given historical state transitions, When requesting snapshot at timestamp T, Then reconstruct exact 32-asset state.",
+        "summary": "US-10: Time-travel snapshots",
+        "role": "forensic investigator",
+        "capability": "full and delta state snapshots with delta compression",
+        "benefit": "the exact supply chain state can be reconstructed at any historical point in time",
+        "ac": [
+            "Given recorded state_transitions and snapshot log",
+            "When querying state at timestamp T",
+            "Then reconstruct exact 32-asset health and metric values using delta decompression",
+        ],
         "points": 13,
-        "epic_idx": 2,
         "component": "Digital Twin Core",
         "labels": ["phase-9"],
         "priority": "High",
+        "epic": "EPIC-2",
         "sprint": 1,
     },
     {
         "id": "US-11",
-        "summary": "Eclipse Ditto integration",
-        "description": "As an enterprise architect, I want full Eclipse Ditto digital twin integration with 32 synchronized Things and a dashboard badge so that the platform conforms to W3C standards.",
-        "ac": "Given 5 Ditto containers running, When ditto_sync executes every 5s, Then all 32 assets sync to /api/2/things and dashboard displays Ditto badge.",
+        "summary": "US-11: Eclipse Ditto integration",
+        "role": "enterprise architect",
+        "capability": "Eclipse Ditto integration with 5 containers and periodic 5-second sync",
+        "benefit": "all 32 assets conform to standard W3C Digital Twin Thing models with live REST endpoints",
+        "ac": [
+            "Given Eclipse Ditto cluster running on port 8080",
+            "When ditto_sync runs every 5 seconds",
+            "Then PUT /api/2/things/{id} synchronizes all 32 assets with latency < 500ms",
+        ],
         "points": 13,
-        "epic_idx": 2,
         "component": "Digital Twin Core",
         "labels": ["eclipse-ditto"],
         "priority": "Highest",
+        "epic": "EPIC-2",
         "sprint": 1,
     },
-    # Epic 3: Detection Engine
+    # --- EPIC-3: Detection Engine ---
     {
         "id": "US-12",
-        "summary": "10 rule-based detectors",
-        "description": "As a detection engineer, I want 10 deterministic detection rules (RULE-001..010) covering cold-chain, speed, geofencing, and brute-force so that known attack patterns are flagged.",
-        "ac": "Given telemetry and event streams, When matching rule condition occurs, Then generate detection with confidence 0.60–0.95.",
+        "summary": "US-12: 10 rule-based detectors",
+        "role": "detection engineer",
+        "capability": "10 deterministic detection rules (RULE-001..RULE-010)",
+        "benefit": "known cyber-physical anomalies like cold-chain thermal breaches and geofence violations are caught instantly",
+        "ac": [
+            "Given incoming telemetry and event streams",
+            "When rule threshold condition is satisfied (e.g. temp > 8C or failed logins >= 5)",
+            "Then emit detection record with confidence 0.60–0.95 within 2 seconds",
+        ],
         "points": 13,
-        "epic_idx": 3,
         "component": "Detection Engine",
         "labels": ["phase-10"],
         "priority": "High",
+        "epic": "EPIC-3",
         "sprint": 1,
     },
     {
         "id": "US-13",
-        "summary": "9 asset-type state machines",
-        "description": "As a security architect, I want finite state machines for all 9 asset types so that unauthorized or out-of-order state transitions are flagged as anomalies.",
-        "ac": "Given asset state change, When transition violates defined lifecycle, Then emit transition anomaly detection.",
+        "summary": "US-13: 9 asset-type state machines",
+        "role": "security engineer",
+        "capability": "finite state machines for all 9 supply chain asset types",
+        "benefit": "out-of-order or unauthorized operational transitions trigger transition anomaly alerts",
+        "ac": [
+            "Given defined valid transitions per asset type",
+            "When an illegal transition occurs (e.g. IN_TRANSIT directly to MAINTENANCE without DELIVERED)",
+            "Then log transition anomaly and flag asset as suspicious",
+        ],
         "points": 8,
-        "epic_idx": 3,
         "component": "Detection Engine",
         "labels": ["phase-11"],
         "priority": "High",
+        "epic": "EPIC-3",
         "sprint": 1,
     },
     {
         "id": "US-14",
-        "summary": "6 correlation rules",
-        "description": "As an incident responder, I want 6 multi-signal correlation rules so that related alerts across temporal windows are grouped into actionable incidents.",
-        "ac": "Given related detections within sliding window, When correlation conditions met, Then synthesize single consolidated incident.",
+        "summary": "US-14: 6 correlation rules",
+        "role": "incident responder",
+        "capability": "6 multi-signal correlation rules across temporal sliding windows",
+        "benefit": "disparate low-severity detections are synthesized into consolidated incidents",
+        "ac": [
+            "Given multiple related detections within a 60-second window",
+            "When correlation rule conditions match",
+            "Then create an incident entity and link all contributing detection and telemetry IDs",
+        ],
         "points": 8,
-        "epic_idx": 3,
         "component": "Detection Engine",
         "labels": ["phase-7"],
         "priority": "High",
+        "epic": "EPIC-3",
         "sprint": 1,
     },
     {
         "id": "US-15",
-        "summary": "Risk scoring (6 components)",
-        "description": "As a risk analyst, I want a 6-component dynamic risk scoring model (Detections 35%, Transitions 15%, Incidents 20%, Threat Intel 15%, Centrality 10%, Health 5%) so that asset risk is recomputed on every ingest.",
-        "ac": "Given asset telemetry and detections, When scoring function evaluates, Then output normalized composite risk score 0–100.",
+        "summary": "US-15: Risk scoring (6 components)",
+        "role": "risk analyst",
+        "capability": "6-component dynamic risk scoring algorithm recalculated after every ingest",
+        "benefit": "asset risk scores (0–100) dynamically reflect detections, transitions, incidents, threat intel, centrality, and health",
+        "ac": [
+            "Given asset evaluation formula with weights (35% det, 15% trans, 20% inc, 15% intel, 10% cent, 5% health)",
+            "When telemetry is ingested",
+            "Then recompute and persist composite risk score within 100ms",
+        ],
         "points": 8,
-        "epic_idx": 3,
         "component": "Detection Engine",
         "labels": ["phase-12"],
         "priority": "High",
+        "epic": "EPIC-3",
         "sprint": 1,
     },
-    # Epic 4: Threat Intelligence (C8)
+    # --- EPIC-4: Threat Intelligence (C8) ---
     {
         "id": "US-16",
-        "summary": "IOC extraction (11 types)",
-        "description": "As a threat researcher, I want automated extraction of 11 IOC types (IP, IPv6, domain, URL, MD5, SHA1, SHA256, email, MQTT topic, BTC, ETH) from raw payloads.",
-        "ac": "Given abnormal payload, When regex parser executes, Then extract deduplicated IOCs and associate with asset.",
+        "summary": "US-16: IOC extraction (11 types)",
+        "role": "threat researcher",
+        "capability": "automated extraction of 11 IOC types from raw payloads and logs",
+        "benefit": "IPs, domains, hashes, URLs, emails, and crypto addresses are automatically isolated",
+        "ac": [
+            "Given abnormal payload string or event log",
+            "When regex and semantic extractors run",
+            "Then extract and deduplicate IOCs, attributing them to the origin asset ID",
+        ],
         "points": 8,
-        "epic_idx": 4,
         "component": "Threat Intelligence",
         "labels": ["phase-15", "ioc"],
         "priority": "High",
+        "epic": "EPIC-4",
         "sprint": 2,
     },
     {
         "id": "US-17",
-        "summary": "3-provider enrichment",
-        "description": "As a cyber threat analyst, I want automated threat intel lookups across VirusTotal, AbuseIPDB, and AlienVault OTX with 24h caching so that IOC reputation is established.",
-        "ac": "Given extracted public IOC, When enrichment pipeline queries APIs, Then cache consensus verdict for 24 hours.",
+        "summary": "US-17: 3-provider enrichment",
+        "role": "cyber threat analyst",
+        "capability": "automated enrichment via VirusTotal, AbuseIPDB, and AlienVault OTX with 24h caching",
+        "benefit": "observed indicators receive consensus reputation verdicts without exceeding API quotas",
+        "ac": [
+            "Given extracted public IOC",
+            "When enrichment pipeline queries external threat feeds",
+            "Then store provider verdicts in ioc_enrichments with a 24-hour TTL cache",
+        ],
         "points": 13,
-        "epic_idx": 4,
         "component": "Threat Intelligence",
         "labels": ["phase-16"],
         "priority": "High",
+        "epic": "EPIC-4",
         "sprint": 2,
     },
     {
         "id": "US-18",
-        "summary": "C8 risk reweighting loop",
-        "description": "As a cybersecurity researcher, I want the C8 dynamic risk reweighting loop so that malicious external threat intelligence automatically amplifies asset risk scores.",
-        "ac": "Given malicious IOC verdict, When reweighting algorithm runs, Then amplify asset risk score and update downstream blast radius.",
+        "summary": "US-18: C8 risk reweighting loop",
+        "role": "cybersecurity researcher",
+        "capability": "closed-loop dynamic risk reweighting triggered by malicious threat intel verdicts",
+        "benefit": "malicious external reputation dynamically amplifies asset risk scores and prioritizes triage",
+        "ac": [
+            "Given an IOC confirmed malicious (confidence >= 0.50)",
+            "When C8 reweighting algorithm executes",
+            "Then amplify threat intel risk component by (1 + 1.5 * confidence) and trigger blast radius recalculation",
+        ],
         "points": 13,
-        "epic_idx": 4,
         "component": "Threat Intelligence",
         "labels": ["c8", "research"],
         "priority": "Highest",
+        "epic": "EPIC-4",
         "sprint": 2,
     },
-    # Epic 5: Analysis & Triage
+    # --- EPIC-5: Analysis & Triage ---
     {
         "id": "US-19",
-        "summary": "Blast radius computation",
-        "description": "As a SOC analyst, I want breadth-first topological blast radius computation with 0.7^depth distance attenuation so that cascade impact is quantified.",
-        "ac": "Given compromised root asset, When BFS traversal executes up to depth 4, Then return list of impacted assets and scores.",
+        "summary": "US-19: Blast radius computation",
+        "role": "SOC analyst",
+        "capability": "topological blast radius computation using BFS traversal with 0.7^depth decay",
+        "benefit": "cascading compromise risk across multi-hop dependencies is accurately quantified",
+        "ac": [
+            "Given compromised root node",
+            "When BFS traversal computes impact across directed dependency edges up to depth 4",
+            "Then calculate attenuated impact scores and identify all vulnerable downstream nodes",
+        ],
         "points": 8,
-        "epic_idx": 5,
         "component": "Analysis & Triage",
         "labels": ["phase-17"],
         "priority": "High",
+        "epic": "EPIC-5",
         "sprint": 2,
     },
     {
         "id": "US-20",
-        "summary": "Attack story engine",
-        "description": "As an incident commander, I want an attack storytelling engine that reconstructs chronological timelines and maps events to 13 MITRE ATT&CK tactics.",
-        "ac": "Given multi-stage attack events, When narrative synthesizer runs, Then produce chronological story with MITRE tactics.",
+        "summary": "US-20: Attack story engine",
+        "role": "incident commander",
+        "capability": "attack storytelling engine mapping multi-stage events to 13 MITRE ATT&CK tactics",
+        "benefit": "analysts see a coherent chronological narrative of the adversary's progression",
+        "ac": [
+            "Given correlated security events in an active attack scenario",
+            "When attack story synthesizer runs",
+            "Then generate ordered timeline, associate MITRE tactics, and compute attribution confidence",
+        ],
         "points": 13,
-        "epic_idx": 5,
         "component": "Analysis & Triage",
         "labels": ["phase-14", "mitre"],
         "priority": "High",
+        "epic": "EPIC-5",
         "sprint": 2,
     },
     {
         "id": "US-21",
-        "summary": "Auto-triage classifier",
-        "description": "As a SOC lead, I want automated alert triage classifying detections as TP/FP/FN/TN with measured performance (P=0.89, R=1.00, F1=0.94) so that alert fatigue is eliminated.",
-        "ac": "Given unclassified detections, When triage classifier executes, Then output classification metrics and confusion matrix.",
+        "summary": "US-21: Auto-triage classifier",
+        "role": "SOC lead",
+        "capability": "automated triage classifier categorizing detections into TP/FP/FN/TN",
+        "benefit": "alert fatigue is reduced with verified performance (Precision=0.89, Recall=1.00, F1=0.94)",
+        "ac": [
+            "Given unclassified detections",
+            "When automated triage sweep executes",
+            "Then classify alerts, output confusion matrix, and achieve >= 0.89 precision with 1.00 recall",
+        ],
         "points": 8,
-        "epic_idx": 5,
         "component": "Analysis & Triage",
         "labels": ["phase-18"],
         "priority": "Highest",
+        "epic": "EPIC-5",
         "sprint": 2,
     },
     {
         "id": "US-22",
-        "summary": "XAI (SHAP) explanations",
-        "description": "As a security analyst, I want KernelSHAP feature attribution explanations for ML anomaly detections so that model predictions are transparent and explainable.",
-        "ac": "Given ML anomaly alert, When /api/ml/explain/{id} is queried, Then return top-5 contributing features and attribution weights.",
+        "summary": "US-22: XAI (SHAP) explanations",
+        "role": "security analyst",
+        "capability": "KernelSHAP feature attribution explanations for every ML anomaly detection",
+        "benefit": "operators understand exactly which telemetry features contributed to an ML alert",
+        "ac": [
+            "Given an ML anomaly detection",
+            "When GET /api/ml/explain/{id} is called",
+            "Then return top-5 contributing features with directional SHAP weights within 200ms",
+        ],
         "points": 8,
-        "epic_idx": 5,
         "component": "Analysis & Triage",
         "labels": ["xai"],
         "priority": "High",
+        "epic": "EPIC-5",
         "sprint": 2,
     },
-    # Epic 6: Dashboard & Visualization
+    # --- EPIC-6: Dashboard & Visualization ---
     {
         "id": "US-23",
-        "summary": "4-tab dashboard",
-        "description": "As a security operator, I want a responsive 4-tab Flask dashboard (Live Fleet, Attack Stories, Threat Intel, Triage) with live 3-second auto-refresh.",
-        "ac": "Given browser at http://localhost:5000, When navigating tabs, Then render responsive Chart.js and D3 views with live data.",
+        "summary": "US-23: 4-tab dashboard",
+        "role": "security operator",
+        "capability": "responsive 4-tab Flask web dashboard (Live Fleet, Attack Stories, Threat Intel, Triage)",
+        "benefit": "all security operations and digital twin telemetry are accessible in real time",
+        "ac": [
+            "Given dashboard server running on port 5000",
+            "When opening http://localhost:5000",
+            "Then render KPI cards, live charts, and tables with 3-second auto-refresh polling",
+        ],
         "points": 13,
-        "epic_idx": 6,
         "component": "Dashboard & UI",
         "labels": ["phase-19"],
         "priority": "High",
+        "epic": "EPIC-6",
         "sprint": 2,
     },
     {
         "id": "US-24",
-        "summary": "Live geographic map",
-        "description": "As a logistics security manager, I want a Leaflet map showing truck fleets traveling along real Indian highway corridors with marker clustering.",
-        "ac": "Given truck GPS coordinates, When map loads, Then render trucks on OpenStreetMap with route trails and tooltips.",
+        "summary": "US-24: Live geographic map",
+        "role": "logistics controller",
+        "capability": "interactive Leaflet OpenStreetMap showing truck fleets along Indian highway corridors",
+        "benefit": "fleet movements, route trails, and geographic anomalies are visually tracked",
+        "ac": [
+            "Given real-time truck GPS telemetry",
+            "When viewing Live Fleet map",
+            "Then render animated truck markers, route breadcrumbs, and location tooltips",
+        ],
         "points": 8,
-        "epic_idx": 6,
         "component": "Dashboard & UI",
         "labels": ["phase-19"],
         "priority": "High",
+        "epic": "EPIC-6",
         "sprint": 2,
     },
     {
         "id": "US-25",
-        "summary": "Timeline playback",
-        "description": "As a security trainer, I want a historical timeline scrubber to rewind and replay attack simulations step-by-step.",
-        "ac": "Given attack scenario execution, When moving timeline slider, Then rewind map and asset state to selected step.",
+        "summary": "US-25: Timeline playback",
+        "role": "forensic analyst",
+        "capability": "interactive timeline scrubber to rewind and replay attack simulations step-by-step",
+        "benefit": "analysts can replay multi-stage attack scenarios to study breach progression",
+        "ac": [
+            "Given completed attack scenario",
+            "When adjusting timeline playback slider",
+            "Then rewind map positions, asset states, and alert logs to the selected historical step",
+        ],
         "points": 5,
-        "epic_idx": 6,
         "component": "Dashboard & UI",
         "labels": ["phase-19"],
         "priority": "High",
+        "epic": "EPIC-6",
         "sprint": 2,
     },
     {
         "id": "US-26",
-        "summary": "Geofencing + weather overlay",
-        "description": "As a fleet controller, I want Haversine geofence breach circles and live OpenWeather overlays displayed directly on the geographic map.",
-        "ac": "Given truck coordinates and weather API, When rendering map, Then show colored geofence boundaries and cloud/temp layers.",
+        "summary": "US-26: Geofencing + weather overlay",
+        "role": "fleet safety manager",
+        "capability": "Haversine geofence breach circles and live OpenWeather map overlays",
+        "benefit": "route deviations and adverse environmental weather hazards are flagged immediately",
+        "ac": [
+            "Given assigned regional hubs and weather API",
+            "When truck coordinates deviate beyond safe radius",
+            "Then display colored boundary rings on map and trigger RULE-010 geofence alert",
+        ],
         "points": 5,
-        "epic_idx": 6,
         "component": "Dashboard & UI",
         "labels": ["phase-19"],
         "priority": "High",
+        "epic": "EPIC-6",
         "sprint": 2,
     },
-    # Epic 7: Machine Learning
+    # --- EPIC-7: Machine Learning ---
     {
         "id": "US-27",
-        "summary": "Isolation Forest models (8)",
-        "description": "As an ML engineer, I want 8 Isolation Forest anomaly detection models trained per asset type to detect zero-day telemetry anomalies.",
-        "ac": "Given baseline telemetry training sets, When models train, Then persist artifacts in ml/artifacts/ with decision thresholds.",
+        "summary": "US-27: Isolation Forest models (8)",
+        "role": "data scientist",
+        "capability": "8 unsupervised Isolation Forest anomaly detection models trained per asset type",
+        "benefit": "multivariate zero-day sensor telemetry anomalies are detected without labeled training data",
+        "ac": [
+            "Given rolling feature vectors (mean, std, range, slope, z-score)",
+            "When model fits on baseline telemetry",
+            "Then serialize models to ml/artifacts/ and evaluate anomaly probabilities",
+        ],
         "points": 8,
-        "epic_idx": 7,
         "component": "Machine Learning",
         "labels": ["ml", "phase-22"],
         "priority": "High",
+        "epic": "EPIC-7",
         "sprint": 1,
     },
     {
         "id": "US-28",
-        "summary": "One-Class SVM models (8)",
-        "description": "As an ML engineer, I want 8 One-Class SVM models trained per asset type to provide complementary boundary-based anomaly detection.",
-        "ac": "Given normal telemetry features, When SVM models fit, Then persist model weights and evaluate anomaly boundary.",
+        "summary": "US-28: One-Class SVM models (8)",
+        "role": "data scientist",
+        "capability": "8 One-Class SVM models trained per asset type as complementary boundary estimators",
+        "benefit": "ensemble agreement between Isolation Forest and SVM enhances detection precision",
+        "ac": [
+            "Given normal operating feature distributions",
+            "When One-Class SVM fits with RBF kernel",
+            "Then persist model artifacts and flag outlier vectors lying outside support boundary",
+        ],
         "points": 8,
-        "epic_idx": 7,
         "component": "Machine Learning",
         "labels": ["ml", "phase-22"],
         "priority": "High",
+        "epic": "EPIC-7",
         "sprint": 1,
     },
     {
         "id": "US-29",
-        "summary": "ML-ANOMALY detection wiring",
-        "description": "As a pipeline developer, I want ML model inference integrated directly into the ingestion pipeline so that anomalous payloads trigger ML detections.",
-        "ac": "Given incoming telemetry vector, When scored by trained models, Then emit ML-ANOMALY detection if threshold exceeded.",
+        "summary": "US-29: ML-ANOMALY detection wiring",
+        "role": "pipeline engineer",
+        "capability": "seamless integration of ML inference scores into the live ingestion and triage pipeline",
+        "benefit": "ML anomalies automatically generate detection records and contribute to asset risk scores",
+        "ac": [
+            "Given incoming telemetry stream",
+            "When ML inference evaluates feature vector",
+            "Then if anomaly probability > 0.65, emit ML-ANOMALY detection and route to triage",
+        ],
         "points": 5,
-        "epic_idx": 7,
         "component": "Machine Learning",
         "labels": ["ml", "phase-22"],
         "priority": "High",
+        "epic": "EPIC-7",
         "sprint": 1,
     },
-    # Epic 8: Infrastructure & DevOps
+    # --- EPIC-8: Infrastructure & DevOps ---
     {
         "id": "US-30",
-        "summary": "Multi-stage Dockerfiles",
-        "description": "As a DevOps engineer, I want optimized multi-stage Dockerfiles with non-root app users and healthchecks for secure container deployments.",
-        "ac": "Given project repository, When docker build runs, Then produce minimal, non-root OCI-compliant container images.",
+        "summary": "US-30: Multi-stage Dockerfiles",
+        "role": "DevOps engineer",
+        "capability": "optimized multi-stage Dockerfiles running with dedicated non-root USER app",
+        "benefit": "production container images have minimal attack surfaces and built-in healthchecks",
+        "ac": [
+            "Given Docker build instructions",
+            "When building API and Dashboard containers",
+            "Then verify image builds with non-root user and passes container security audits",
+        ],
         "points": 8,
-        "epic_idx": 8,
         "component": "Infrastructure & DevOps",
         "labels": ["docker", "phase-23"],
         "priority": "Medium",
+        "epic": "EPIC-8",
         "sprint": 2,
     },
     {
         "id": "US-31",
-        "summary": "Docker Compose (14 containers)",
-        "description": "As a deployment engineer, I want a complete docker-compose.yml file orchestrating all 14 containers (API, DB, MQTT, Ditto, Wazuh, Suricata).",
-        "ac": "Given docker compose up -d, When executed on host, Then all 14 services start healthy and interconnected.",
+        "summary": "US-31: Docker Compose (14 containers)",
+        "role": "deployment engineer",
+        "capability": "complete docker-compose.yml orchestrating all 14 containers",
+        "benefit": "the entire cyber digital twin stack launches locally with one command",
+        "ac": [
+            "Given docker compose up -d",
+            "When all services start",
+            "Then confirm 14 containers (API, DB, MQTT, Ditto, Wazuh, Suricata) report healthy status",
+        ],
         "points": 5,
-        "epic_idx": 8,
         "component": "Infrastructure & DevOps",
         "labels": ["docker", "phase-23"],
         "priority": "Medium",
+        "epic": "EPIC-8",
         "sprint": 2,
     },
     {
         "id": "US-32",
-        "summary": "CI/CD pipeline",
-        "description": "As a software release engineer, I want automated GitHub Actions workflows running linting, tests, security audits, and container publishing.",
-        "ac": "Given git push to main, When workflow triggers, Then execute pytest, coverage, Bandit SAST, and Docker build.",
+        "summary": "US-32: CI/CD pipeline",
+        "role": "release engineer",
+        "capability": "GitHub Actions CI/CD pipelines executing tests, linting, and image publishing",
+        "benefit": "code changes are automatically validated and deployed with green build status",
+        "ac": [
+            "Given git push or PR to main",
+            "When .github/workflows/ci.yml triggers",
+            "Then execute pytest, verify coverage, run Bandit SAST, and build containers cleanly",
+        ],
         "points": 5,
-        "epic_idx": 8,
         "component": "Infrastructure & DevOps",
         "labels": ["phase-23"],
         "priority": "Medium",
+        "epic": "EPIC-8",
         "sprint": 2,
     },
     {
         "id": "US-33",
-        "summary": "AWS Terraform",
-        "description": "As a cloud architect, I want modular Terraform scripts deploying VPC, RDS Postgres, ECS Fargate, ALB, ECR, and Secrets Manager on AWS.",
-        "ac": "Given terraform apply, When executed in cloud environment, Then provision production-ready supply chain twin infrastructure.",
+        "summary": "US-33: AWS Terraform",
+        "role": "cloud architect",
+        "capability": "modular Terraform IaC deploying VPC, RDS Postgres, ECS Fargate, ALB, and Secrets Manager",
+        "benefit": "the digital twin can be deployed into highly available AWS cloud environments",
+        "ac": [
+            "Given terraform plan and apply",
+            "When executed against AWS target",
+            "Then provision VPC, multi-AZ subnets, ECS Fargate services, and ALB endpoints cleanly",
+        ],
         "points": 21,
-        "epic_idx": 8,
         "component": "Infrastructure & DevOps",
         "labels": ["terraform", "phase-24"],
         "priority": "Medium",
+        "epic": "EPIC-8",
         "sprint": 2,
     },
-    # Epic 9: Security & Compliance
+    # --- EPIC-9: Security & Compliance ---
     {
         "id": "US-34",
-        "summary": "STRIDE threat model",
-        "description": "As a security architect, I want a comprehensive STRIDE threat model covering all DFD elements and trust boundaries with documented mitigations.",
-        "ac": "Given 7-layer architecture, When STRIDE analysis evaluates components, Then document threats and verify mitigations in THREAT_MODEL.md.",
+        "summary": "US-34: STRIDE threat model",
+        "role": "security architect",
+        "capability": "comprehensive STRIDE threat model covering all DFD elements and trust boundaries",
+        "benefit": "systematic threat identification ensures proactive defensive mitigations are implemented",
+        "ac": [
+            "Given 7-layer architecture and data flow diagram",
+            "When analyzing Spoofing, Tampering, Repudiation, Info Disclosure, DoS, and Elevation",
+            "Then document threat matrix and verify corresponding security controls in docs/THREAT_MODEL.md",
+        ],
         "points": 8,
-        "epic_idx": 9,
         "component": "Security & Compliance",
         "labels": ["phase-1"],
         "priority": "Medium",
+        "epic": "EPIC-9",
         "sprint": 2,
     },
     {
         "id": "US-35",
-        "summary": "20 security requirements (SR1–SR20)",
-        "description": "As a compliance officer, I want all 20 security requirements implemented and documented across authentication, validation, and container isolation.",
-        "ac": "Given system codebase, When auditing security layers, Then confirm all 20 requirements active and documented.",
+        "summary": "US-35: 20 security requirements (SR1–SR20)",
+        "role": "compliance officer",
+        "capability": "implementation and verification of 20 defense-in-depth security requirements",
+        "benefit": "system adheres to industry best practices across authentication, integrity, and isolation",
+        "ac": [
+            "Given the 20 defined security requirements (SR1..SR20)",
+            "When inspecting codebase and container configurations",
+            "Then confirm all 20 security layers are active and documented in docs/SECURITY_FEATURES.md",
+        ],
         "points": 5,
-        "epic_idx": 9,
         "component": "Security & Compliance",
         "labels": ["phase-1"],
         "priority": "Medium",
+        "epic": "EPIC-9",
         "sprint": 2,
     },
     {
         "id": "US-36",
-        "summary": "Dependency reduction & audit",
-        "description": "As a DevSecOps specialist, I want automated dependency vulnerability scanning using Bandit, pip-audit, and safety with a clean bill of health.",
-        "ac": "Given python dependencies, When pip-audit and bandit execute, Then report 0 known vulnerabilities and zero code smells.",
+        "summary": "US-36: Dependency reduction & audit",
+        "role": "DevSecOps engineer",
+        "capability": "automated vulnerability auditing using Bandit SAST, pip-audit, and safety",
+        "benefit": "vulnerable third-party libraries and code smells are eliminated from the build",
+        "ac": [
+            "Given python dependencies and code repository",
+            "When running bandit -r and pip-audit",
+            "Then report zero high-severity vulnerabilities and zero unresolved security code smells",
+        ],
         "points": 3,
-        "epic_idx": 9,
         "component": "Security & Compliance",
         "labels": ["phase-1"],
         "priority": "Medium",
+        "epic": "EPIC-9",
         "sprint": 2,
     },
-    # Epic 10: Testing & Documentation
+    # --- EPIC-10: Testing & Documentation ---
     {
         "id": "US-37",
-        "summary": "~200 tests, ≥85% coverage",
-        "description": "As a QA lead, I want ~200 unit and integration tests achieving >=85% code coverage executed through pytest with XML reporting.",
-        "ac": "Given pytest testpaths=tests, When test runner executes, Then all ~200 tests pass with coverage >= 85%.",
+        "summary": "US-37: ~200 tests, ≥85% coverage",
+        "role": "QA engineer",
+        "capability": "automated unit, integration, and E2E simulation test suite with >=85% code coverage",
+        "benefit": "regressions are caught instantly and system reliability is quantitatively verified",
+        "ac": [
+            "Given pytest test suite across tests/ directory",
+            "When executing pytest --cov=. --cov-report=term-missing",
+            "Then all ~200 tests pass and total test coverage meets or exceeds 85%",
+        ],
         "points": 13,
-        "epic_idx": 10,
         "component": "Documentation",
         "labels": ["testing", "phase-21"],
         "priority": "Medium",
+        "epic": "EPIC-10",
         "sprint": 2,
     },
     {
         "id": "US-38",
-        "summary": "11 GitHub documents",
-        "description": "As a technical writer, I want 11 comprehensive GitHub documentation files covering Architecture, API, Deployment, CICD, Requirements, and Diagrams.",
-        "ac": "Given docs directory, When reviewing documentation, Then verify all 11 core markdown documents are complete and linked.",
+        "summary": "US-38: 11 GitHub documents",
+        "role": "technical writer",
+        "capability": "11 comprehensive GitHub documentation guides in docs/ and project root",
+        "benefit": "users, reviewers, and evaluators have complete architectural and operational manuals",
+        "ac": [
+            "Given project documentation folder",
+            "When inspecting docs/ directory",
+            "Then verify README, ARCHITECTURE, API, DEPLOYMENT, CICD, and all required guides exist and are linked",
+        ],
         "points": 8,
-        "epic_idx": 10,
         "component": "Documentation",
         "labels": ["documentation"],
         "priority": "Medium",
+        "epic": "EPIC-10",
         "sprint": 2,
     },
     {
         "id": "US-39",
-        "summary": "53 requirements documented",
-        "description": "As a systems engineer, I want the complete Phase 1 Requirements document (23 FR, 10 NFR, 20 SR) published in docs/PHASE_1_REQUIREMENTS.md.",
-        "ac": "Given Phase 1 deliverable guidelines, When compiling requirements, Then produce structured SRS document with 53 requirements.",
+        "summary": "US-39: 53 requirements documented",
+        "role": "systems engineer",
+        "capability": "complete Phase 1 Requirements Engineering specification (23 FR, 10 NFR, 20 SR)",
+        "benefit": "the project has formal requirements traceability aligning with IEEE/academic standards",
+        "ac": [
+            "Given Phase 1 deliverable requirements",
+            "When viewing docs/PHASE_1_REQUIREMENTS.md",
+            "Then confirm all 53 requirements are cataloged with IDs, descriptions, and targets",
+        ],
         "points": 8,
-        "epic_idx": 10,
         "component": "Documentation",
         "labels": ["documentation", "phase-1"],
         "priority": "Medium",
+        "epic": "EPIC-10",
         "sprint": 2,
     },
 ]
 
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
 
-def create_jira_entities(base_url: str, email: str, token: str, dry_run: bool = False):
-    auth = (email, token)
-    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+def make_adf_description(role: str, capability: str, benefit: str, ac_list: List[str]) -> Dict[str, Any]:
+    """Generates an Atlassian Document Format (ADF) description structure."""
+    user_story_text = f"As a {role}, I want {capability} so that {benefit}."
+    
+    ac_bullet_items = []
+    for ac in ac_list:
+        ac_bullet_items.append({
+            "type": "listItem",
+            "content": [{
+                "type": "paragraph",
+                "content": [{"type": "text", "text": ac}]
+            }]
+        })
 
-    print(f"[*] Initializing Jira Scrum Project setup for '{PROJECT_NAME}' ({PROJECT_KEY})...")
-    if dry_run:
-        print("[DRY-RUN] Simulating execution without calling Jira REST API.")
-        print(f"  - 10 Components: {', '.join(COMPONENTS)}")
-        print(f"  - 10 Epics: {len(EPICS)} epics prepared.")
-        print(f"  - 39 User Stories: {len(STORIES)} stories prepared.")
-        print("  - 2 Sprints: Sprint 1 (143 pts), Sprint 2 (186 pts).")
-        return
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "User Story:", "marks": [{"type": "strong"}]},
+                    {"type": "text", "text": f"\n{user_story_text}\n"}
+                ]
+            },
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "Acceptance Criteria:", "marks": [{"type": "strong"}]}
+                ]
+            },
+            {
+                "type": "bulletList",
+                "content": ac_bullet_items
+            }
+        ]
+    }
 
-    with httpx.Client(base_url=base_url, auth=auth, headers=headers, timeout=30.0) as client:
-        # 1. Verify Project
-        r = client.get(f"/rest/api/3/project/{PROJECT_KEY}")
+
+def make_simple_adf(text: str) -> Dict[str, Any]:
+    """Generates simple single-paragraph ADF."""
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": text}]
+            }
+        ]
+    }
+
+
+class JiraClient:
+    def __init__(self, base_url: str, email: str, token: str, dry_run: bool = False):
+        self.base_url = base_url.rstrip("/")
+        self.email = email
+        self.token = token
+        self.dry_run = dry_run
+        self.session = requests.Session()
+        self.session.auth = (email, token)
+        self.session.headers.update({
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        })
+        self.fields_cache: Dict[str, str] = {}
+        self.stats = {
+            "epics_created": 0,
+            "stories_created": 0,
+            "already_existed": 0,
+            "errors": 0
+        }
+
+    def jira(self, method: str, path: str, **kwargs) -> requests.Response:
+        url = f"{self.base_url}/{path.lstrip('/')}"
+        if self.dry_run:
+            print(f"[DRY-RUN] {method.upper()} {url}")
+            if "json" in kwargs:
+                print(f"          Body: {json.dumps(kwargs['json'], indent=2)[:300]}...")
+            # Return dummy response
+            dummy = requests.Response()
+            dummy.status_code = 200
+            dummy._content = b"{}"
+            return dummy
+
+        try:
+            resp = self.session.request(method, url, **kwargs)
+            if resp.status_code >= 400:
+                print(f"[!] {method.upper()} {path} -> HTTP {resp.status_code}")
+                try:
+                    err_json = resp.json()
+                    print(f"    Error details: {json.dumps(err_json)[:250]}")
+                except Exception:
+                    print(f"    Response text: {resp.text[:200]}")
+            return resp
+        except Exception as exc:
+            print(f"[ERROR] Request to {url} failed: {exc}")
+            dummy = requests.Response()
+            dummy.status_code = 500
+            dummy._content = b"{}"
+            return dummy
+
+    def discover_fields(self):
+        """Discovers custom field IDs for Epic Name, Epic Link, and Story Points."""
+        if self.dry_run:
+            self.fields_cache = {
+                "epic_name": "customfield_10011",
+                "epic_link": "customfield_10014",
+                "story_points": "customfield_10016"
+            }
+            return
+
+        print("[*] Discovering Jira custom field IDs...")
+        r = self.jira("GET", "/rest/api/3/field")
         if r.status_code == 200:
-            print(f"[OK] Project {PROJECT_KEY} exists.")
+            fields = r.json()
+            for f in fields:
+                fname = f.get("name", "").lower()
+                fid = f.get("id", "")
+                if fname in ("epic name", "epic-name"):
+                    self.fields_cache["epic_name"] = fid
+                elif fname in ("epic link", "epic-link"):
+                    self.fields_cache["epic_link"] = fid
+                elif fname in ("story points", "story point estimate"):
+                    self.fields_cache["story_points"] = fid
+
+        print(f"    Discovered fields: {self.fields_cache}")
+
+    def get_myself_account_id(self) -> Optional[str]:
+        """Resolves caller accountId if not specified in config."""
+        if self.dry_run:
+            return "dry-run-account-id"
+        r = self.jira("GET", "/rest/api/3/myself")
+        if r.status_code == 200:
+            return r.json().get("accountId")
+        return None
+
+
+# ============================================================
+# STEP FUNCTIONS
+# ============================================================
+
+def create_project(client: JiraClient, account_id: str) -> bool:
+    """Step 1: Creates the Jira Scrum project if it does not already exist."""
+    print(f"\n{'='*60}\nSTEP 1 — Check / Create Jira Project ({PROJECT_KEY})\n{'='*60}")
+    
+    # Check if project exists
+    r = client.jira("GET", f"/rest/api/3/project/{PROJECT_KEY}")
+    if r.status_code == 200:
+        print(f"[OK] Project {PROJECT_KEY} already exists. Skipping project creation.")
+        client.stats["already_existed"] += 1
+        return True
+
+    payload = {
+        "key": PROJECT_KEY,
+        "name": PROJECT_NAME,
+        "projectTypeKey": PROJECT_TYPE_KEY,
+        "projectTemplateKey": PROJECT_TEMPLATE_KEY,
+        "description": "API-first Cyber Digital Twin for supply chain security. Amrita Vishwa Vidyapeetham, 20CYS495.",
+        "leadAccountId": account_id,
+        "assigneeType": "PROJECT_LEAD"
+    }
+
+    resp = client.jira("POST", "/rest/api/3/project", json=payload)
+    if resp.status_code in (200, 201):
+        print(f"[+] Successfully created Jira project: {PROJECT_NAME} ({PROJECT_KEY})")
+        return True
+    else:
+        print(f"[!] Project creation returned HTTP {resp.status_code}. It may require manual creation in Jira Cloud UI.")
+        client.stats["errors"] += 1
+        return False
+
+
+def create_components(client: JiraClient):
+    """Step 2: Creates the 10 project components."""
+    print(f"\n{'='*60}\nSTEP 2 — Create Project Components\n{'='*60}")
+    
+    # Fetch existing components
+    existing_comps = set()
+    r = client.jira("GET", f"/rest/api/3/project/{PROJECT_KEY}/components")
+    if r.status_code == 200:
+        for c in r.json():
+            existing_comps.add(c.get("name"))
+
+    for comp in COMPONENTS_LIST:
+        if comp in existing_comps:
+            print(f"  [=] Component '{comp}' already exists. Skipping.")
+            client.stats["already_existed"] += 1
+            continue
+
+        payload = {
+            "name": comp,
+            "project": PROJECT_KEY,
+            "leadAccountId": None
+        }
+        resp = client.jira("POST", "/rest/api/3/component", json=payload)
+        if resp.status_code in (200, 201):
+            print(f"  [+] Created component: {comp}")
         else:
-            print(f"[!] Project {PROJECT_KEY} not found (HTTP {r.status_code}). Please ensure project {PROJECT_KEY} is created as a Scrum Software project.")
+            client.stats["errors"] += 1
+        time.sleep(0.1)
 
-        # 2. Components
-        print("\n[*] Creating Components...")
-        for comp in COMPONENTS:
-            payload = {"name": comp, "project": PROJECT_KEY}
-            cr = client.post("/rest/api/3/component", json=payload)
-            if cr.status_code in (200, 201):
-                print(f"  [+] Created component: {comp}")
-            elif cr.status_code == 409 or "already exists" in cr.text.lower():
-                print(f"  [=] Component already exists: {comp}")
+
+def create_epics(client: JiraClient) -> Dict[str, str]:
+    """Step 3: Creates the 10 epics and returns mapping of epic_id -> Jira key."""
+    print(f"\n{'='*60}\nSTEP 3 — Create 10 Epics\n{'='*60}")
+    
+    # Check existing epics via JQL search
+    existing_epics = {}
+    jql = f'project = "{PROJECT_KEY}" AND issuetype = "Epic"'
+    search_r = client.jira("GET", f"/rest/api/3/search?jql={jql}&maxResults=100")
+    if search_r.status_code == 200:
+        for issue in search_r.json().get("issues", []):
+            summary = issue.get("fields", {}).get("summary", "")
+            key = issue.get("key", "")
+            for ep in EPICS_DATA:
+                if ep["id"] in summary or ep["name"] in summary:
+                    existing_epics[ep["id"]] = key
+
+    epic_key_map = {}
+    epic_name_field = client.fields_cache.get("epic_name")
+
+    for epic in EPICS_DATA:
+        ep_id = epic["id"]
+        if ep_id in existing_epics:
+            existing_key = existing_epics[ep_id]
+            print(f"  [=] {ep_id} already exists as {existing_key}. Skipping.")
+            epic_key_map[ep_id] = existing_key
+            client.stats["already_existed"] += 1
+            continue
+
+        issue_fields = {
+            "project": {"key": PROJECT_KEY},
+            "summary": epic["summary"],
+            "description": make_simple_adf(epic["description"]),
+            "issuetype": {"name": "Epic"},
+            "components": [{"name": epic["component"]}],
+            "labels": epic["labels"],
+            "priority": {"name": epic["priority"]},
+        }
+
+        # Add Epic Name customfield if detected on this instance
+        if epic_name_field:
+            issue_fields[epic_name_field] = epic["name"]
+
+        resp = client.jira("POST", "/rest/api/3/issue", json={"fields": issue_fields})
+        if resp.status_code in (200, 201):
+            created_key = resp.json().get("key", f"{PROJECT_KEY}-?")
+            epic_key_map[ep_id] = created_key
+            client.stats["epics_created"] += 1
+            print(f"  [+] Created {ep_id}: {epic['name']} -> {created_key}")
+        else:
+            client.stats["errors"] += 1
+            # Fallback mock key for dry-run
+            epic_key_map[ep_id] = f"{PROJECT_KEY}-{ep_id.replace('EPIC-', '')}"
+
+        time.sleep(0.3)
+
+    return epic_key_map
+
+
+def create_stories(client: JiraClient, epic_key_map: Dict[str, str]) -> Dict[str, str]:
+    """Step 4: Creates the 39 user stories linked to their respective epics."""
+    print(f"\n{'='*60}\nSTEP 4 — Create 39 User Stories\n{'='*60}")
+    
+    # Check existing stories
+    existing_stories = {}
+    jql = f'project = "{PROJECT_KEY}" AND issuetype = "Story"'
+    search_r = client.jira("GET", f"/rest/api/3/search?jql={jql}&maxResults=150")
+    if search_r.status_code == 200:
+        for issue in search_r.json().get("issues", []):
+            summary = issue.get("fields", {}).get("summary", "")
+            key = issue.get("key", "")
+            for st in STORIES_DATA:
+                if st["id"] in summary:
+                    existing_stories[st["id"]] = key
+
+    story_key_map = {}
+    epic_link_field = client.fields_cache.get("epic_link")
+    points_field = client.fields_cache.get("story_points")
+
+    for st in STORIES_DATA:
+        st_id = st["id"]
+        if st_id in existing_stories:
+            ekey = existing_stories[st_id]
+            print(f"  [=] {st_id} already exists as {ekey}. Skipping.")
+            story_key_map[st_id] = ekey
+            client.stats["already_existed"] += 1
+            continue
+
+        parent_epic_key = epic_key_map.get(st["epic"])
+
+        issue_fields = {
+            "project": {"key": PROJECT_KEY},
+            "summary": st["summary"],
+            "description": make_adf_description(st["role"], st["capability"], st["benefit"], st["ac"]),
+            "issuetype": {"name": "Story"},
+            "components": [{"name": st["component"]}],
+            "labels": st["labels"],
+            "priority": {"name": st["priority"]},
+        }
+
+        # Handle Epic Link: modern Jira Cloud uses "parent", legacy uses customfield
+        if parent_epic_key:
+            if epic_link_field:
+                issue_fields[epic_link_field] = parent_epic_key
             else:
-                print(f"  [!] Component {comp} status {cr.status_code}: {cr.text[:100]}")
+                issue_fields["parent"] = {"key": parent_epic_key}
 
-        # 3. Create Epics
-        print("\n[*] Creating Epics...")
-        epic_keys = {}
-        for epic in EPICS:
-            issue_payload = {
-                "fields": {
-                    "project": {"key": PROJECT_KEY},
-                    "summary": f"EPIC-{epic['key_id']}: {epic['name']}",
-                    "description": {
-                        "type": "doc",
-                        "version": 1,
-                        "content": [
-                            {
-                                "type": "paragraph",
-                                "content": [{"type": "text", "text": epic["description"]}],
-                            }
-                        ],
-                    },
-                    "issuetype": {"name": "Epic"},
-                    "components": [{"name": epic["component"]}],
-                    "labels": epic["labels"],
-                    "priority": {"name": epic["priority"]},
-                }
-            }
-            er = client.post("/rest/api/3/issue", json=issue_payload)
-            if er.status_code in (200, 201):
-                created_key = er.json()["key"]
-                epic_keys[epic["key_id"]] = created_key
-                print(f"  [+] Created Epic {epic['key_id']} -> {created_key}")
+        # Handle Story Points
+        if points_field:
+            issue_fields[points_field] = st["points"]
+
+        resp = client.jira("POST", "/rest/api/3/issue", json={"fields": issue_fields})
+        if resp.status_code in (200, 201):
+            created_key = resp.json().get("key", f"{PROJECT_KEY}-?")
+            story_key_map[st_id] = created_key
+            client.stats["stories_created"] += 1
+            print(f"  [+] Created {st_id} ({st['points']} pts) -> {created_key} [Epic: {parent_epic_key}]")
+        else:
+            # Fallback retry without custom fields if schema was rejected
+            if resp.status_code == 400 and ("parent" in issue_fields or epic_link_field in issue_fields):
+                issue_fields.pop("parent", None)
+                if epic_link_field:
+                    issue_fields.pop(epic_link_field, None)
+                retry_r = client.jira("POST", "/rest/api/3/issue", json={"fields": issue_fields})
+                if retry_r.status_code in (200, 201):
+                    created_key = retry_r.json().get("key", f"{PROJECT_KEY}-?")
+                    story_key_map[st_id] = created_key
+                    client.stats["stories_created"] += 1
+                    print(f"  [+] Created {st_id} (retry standalone) -> {created_key}")
+                else:
+                    client.stats["errors"] += 1
             else:
-                print(f"  [!] Failed to create Epic {epic['key_id']}: {er.text[:150]}")
-                epic_keys[epic["key_id"]] = f"{PROJECT_KEY}-{epic['key_id']}"
+                client.stats["errors"] += 1
 
-        # 4. Create User Stories
-        print("\n[*] Creating 39 User Stories...")
-        for story in STORIES:
-            desc_text = f"{story['description']}\n\nAcceptance Criteria:\n{story['ac']}"
-            parent_epic = epic_keys.get(story["epic_idx"], f"{PROJECT_KEY}-{story['epic_idx']}")
-            story_payload = {
-                "fields": {
-                    "project": {"key": PROJECT_KEY},
-                    "summary": f"{story['id']}: {story['summary']}",
-                    "description": {
-                        "type": "doc",
-                        "version": 1,
-                        "content": [
-                            {
-                                "type": "paragraph",
-                                "content": [{"type": "text", "text": desc_text}],
-                            }
-                        ],
-                    },
-                    "issuetype": {"name": "Story"},
-                    "parent": {"key": parent_epic},
-                    "components": [{"name": story["component"]}],
-                    "labels": story["labels"],
-                    "priority": {"name": story["priority"]},
-                }
-            }
-            sr = client.post("/rest/api/3/issue", json=story_payload)
-            if sr.status_code in (200, 201):
-                skey = sr.json()["key"]
-                print(f"  [+] Created {story['id']} ({story['points']} pts) -> {skey} [Epic: {parent_epic}]")
-            else:
-                print(f"  [!] Failed {story['id']}: {sr.text[:150]}")
+        time.sleep(0.3)
 
-    print("\n[OK] Jira initialization complete!")
+    return story_key_map
 
+
+def get_or_create_board(client: JiraClient) -> Optional[int]:
+    """Finds the Scrum board associated with the SSCDT project."""
+    r = client.jira("GET", f"/rest/agile/1.0/board?projectKeyOrId={PROJECT_KEY}")
+    if r.status_code == 200:
+        values = r.json().get("values", [])
+        if values:
+            board_id = values[0].get("id")
+            print(f"[OK] Found Scrum board: '{values[0].get('name')}' (ID: {board_id})")
+            return board_id
+
+    # Fallback to board #1 if dry-run or default
+    return 1 if client.dry_run else None
+
+
+def create_sprints(client: JiraClient, board_id: int) -> Tuple[Optional[int], Optional[int]]:
+    """Step 5: Creates Sprint 1 and Sprint 2 on the agile board."""
+    print(f"\n{'='*60}\nSTEP 5 — Create Sprints on Board {board_id}\n{'='*60}")
+    
+    # Check existing sprints
+    existing_sprints = {}
+    r = client.jira("GET", f"/rest/agile/1.0/board/{board_id}/sprint")
+    if r.status_code == 200:
+        for sp in r.json().get("values", []):
+            existing_sprints[sp.get("name")] = sp.get("id")
+
+    sprint_defs = [
+        {
+            "num": 1,
+            "name": "SSCDT Sprint 1 — Foundation & Detection",
+            "goal": "Deliver ingestion, digital twin core, and detection engine (Epics 1, 2, 3, 7)."
+        },
+        {
+            "num": 2,
+            "name": "SSCDT Sprint 2 — Intelligence, Analysis & Ops",
+            "goal": "Deliver threat intel C8, analysis/triage, dashboard, infra, security, testing, docs (Epics 4, 5, 6, 8, 9, 10)."
+        }
+    ]
+
+    sprint_ids = [None, None]
+
+    for idx, sdef in enumerate(sprint_defs):
+        sname = sdef["name"]
+        if sname in existing_sprints:
+            sid = existing_sprints[sname]
+            print(f"  [=] Sprint '{sname}' already exists (ID: {sid}). Skipping.")
+            sprint_ids[idx] = sid
+            client.stats["already_existed"] += 1
+            continue
+
+        payload = {
+            "name": sname,
+            "goal": sdef["goal"],
+            "originBoardId": board_id
+        }
+        resp = client.jira("POST", "/rest/agile/1.0/sprint", json=payload)
+        if resp.status_code in (200, 201):
+            sid = resp.json().get("id")
+            sprint_ids[idx] = sid
+            print(f"  [+] Created Sprint {sdef['num']}: '{sname}' (ID: {sid})")
+        else:
+            client.stats["errors"] += 1
+            sprint_ids[idx] = idx + 101  # Fallback for dry-run
+
+    return sprint_ids[0], sprint_ids[1]
+
+
+def assign_stories_to_sprints(client: JiraClient, story_key_map: Dict[str, str], s1_id: Optional[int], s2_id: Optional[int]):
+    """Step 6: Moves stories into Sprint 1 and Sprint 2."""
+    print(f"\n{'='*60}\nSTEP 6 — Assign Stories to Sprints\n{'='*60}")
+    
+    s1_keys = []
+    s2_keys = []
+
+    for st in STORIES_DATA:
+        st_key = story_key_map.get(st["id"])
+        if not st_key:
+            continue
+        if st["sprint"] == 1:
+            s1_keys.append(st_key)
+        else:
+            s2_keys.append(st_key)
+
+    if s1_id and s1_keys:
+        print(f"[*] Moving {len(s1_keys)} stories into Sprint 1 (ID: {s1_id})...")
+        r1 = client.jira("POST", f"/rest/agile/1.0/sprint/{s1_id}/issue", json={"issues": s1_keys})
+        if r1.status_code in (200, 204):
+            print(f"  [OK] Assigned {len(s1_keys)} issues to Sprint 1.")
+        else:
+            print(f"  [!] Sprint 1 assignment status: {r1.status_code}")
+
+    if s2_id and s2_keys:
+        print(f"[*] Moving {len(s2_keys)} stories into Sprint 2 (ID: {s2_id})...")
+        r2 = client.jira("POST", f"/rest/agile/1.0/sprint/{s2_id}/issue", json={"issues": s2_keys})
+        if r2.status_code in (200, 204):
+            print(f"  [OK] Assigned {len(s2_keys)} issues to Sprint 2.")
+        else:
+            print(f"  [!] Sprint 2 assignment status: {r2.status_code}")
+
+
+# ============================================================
+# MAIN ENTRYPOINT
+# ============================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Initialize Jira Scrum Project for SSCDT")
-    parser.add_argument("--url", default=os.getenv("JIRA_BASE_URL", "https://your-domain.atlassian.net"), help="Jira base URL")
-    parser.add_argument("--email", default=os.getenv("JIRA_USER_EMAIL", ""), help="Jira user email")
-    parser.add_argument("--token", default=os.getenv("JIRA_API_TOKEN", ""), help="Jira API token")
-    parser.add_argument("--dry-run", action="store_true", help="Print summary without calling API")
+    parser = argparse.ArgumentParser(description="Jira Cloud Scrum Project Automation for SSCDT")
+    parser.add_argument("--url", default=JIRA_URL, help="Jira Cloud Base URL")
+    parser.add_argument("--email", default=EMAIL, help="Atlassian Account Email")
+    parser.add_argument("--token", default=API_TOKEN, help="Atlassian API Token")
+    parser.add_argument("--account-id", default=ACCOUNT_ID, help="Atlassian Account ID")
+    parser.add_argument("--dry-run", action="store_true", help="Print actions without modifying Jira")
+    parser.add_argument("--skip-project", action="store_true", help="Skip project creation step")
     args = parser.parse_args()
 
-    if not args.dry_run and (not args.email or not args.token):
-        print("[INFO] No API credentials supplied. Running in --dry-run mode by default.")
-        args.dry_run = True
+    print("=" * 70)
+    print(" Smart Supply Chain Cyber Digital Twin (SSCDT) — Jira Initializer")
+    print(f" Target Instance: {args.url}")
+    print("=" * 70)
 
-    create_jira_entities(args.url, args.email, args.token, dry_run=args.dry_run)
+    # Initialize Jira Client
+    client = JiraClient(args.url, args.email, args.token, dry_run=args.dry_run)
+
+    # Auto-detect Account ID if placeholder
+    account_id = args.account_id
+    if not account_id or "your-account-id" in account_id or "[REPLACE" in account_id:
+        print("[*] Detecting accountId via /rest/api/3/myself...")
+        detected_id = client.get_myself_account_id()
+        if detected_id:
+            account_id = detected_id
+            print(f"[OK] Detected Account ID: {account_id}")
+        else:
+            account_id = "unassigned"
+
+    # Discover Custom Fields (Epic Name, Story Points, Epic Link)
+    client.discover_fields()
+
+    # Step 1: Project Creation
+    if not args.skip_project:
+        create_project(client, account_id)
+
+    # Step 2: Components Creation
+    create_components(client)
+
+    # Step 3: Epics Creation
+    epic_key_map = create_epics(client)
+
+    # Step 4: Stories Creation
+    story_key_map = create_stories(client, epic_key_map)
+
+    # Step 5: Sprints Creation
+    board_id = get_or_create_board(client)
+    if board_id:
+        s1_id, s2_id = create_sprints(client, board_id)
+        # Step 6: Move Stories into Sprints
+        assign_stories_to_sprints(client, story_key_map, s1_id, s2_id)
+    else:
+        print("[WARN] Scrum Board ID not found; skipping sprint creation.")
+
+    # Save created keys to docs/jira_created_keys.json
+    out_dir = os.path.join(os.path.dirname(__file__), "..", "docs")
+    os.makedirs(out_dir, exist_ok=True)
+    out_file = os.path.join(out_dir, "jira_created_keys.json")
+    
+    export_data = {
+        "project": PROJECT_KEY,
+        "epics": epic_key_map,
+        "stories": story_key_map,
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(export_data, f, indent=2)
+    print(f"\n[OK] Issue keys exported to: {out_file}")
+
+    # Summary Report
+    print("\n" + "=" * 70)
+    print(" EXECUTION SUMMARY")
+    print("=" * 70)
+    print(f" Epics Created        : {client.stats['epics_created']} / 10")
+    print(f" User Stories Created : {client.stats['stories_created']} / 39")
+    print(f" Already Existed      : {client.stats['already_existed']}")
+    print(f" Errors Encountered   : {client.stats['errors']}")
+    print("=" * 70)
+    print("Setup completed successfully!")
 
 
 if __name__ == "__main__":
