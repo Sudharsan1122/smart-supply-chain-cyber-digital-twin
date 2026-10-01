@@ -1,29 +1,31 @@
 flowchart LR
-    A1[Security Analyst] --> P1
-    A2[Attacker Simulated] --> P1
-    A3[Wazuh SIEM] --> P1
-    A4[Suricata IDS] --> P1
+    E1[Security Analyst] -->|Investigate Story / Map| P7
+    E2[SOC Operator] -->|Review Triage / Alerts| P9
+    E3[System Admin] -->|Configure Keys / Lifecycle| P1
+    E4[Attacker Simulated] -->|Inject Attack Telemetry| P1
+    E5[Wazuh SIEM] -->|Host Security Alerts| P1
+    E6[Suricata IDS] -->|Network Flow Eve Logs| P1
 
-    P1[P1: Ingestion] --> P2[P2: Validation]
-    P2 --> D1[(D1: PostgreSQL)]
-    P2 --> P3[P3: Detection]
-    P3 --> P4[P4: Correlation]
-    P3 --> D1
-    P4 --> P5[P5: IOC Enrichment]
-    P5 --> TI[Threat Intel APIs]
-    TI --> P5
-    P5 --> D1
-    P3 --> P6[P6: Risk Scoring]
-    P6 --> D1
-    P4 --> P7[P7: Attack Story]
-    P7 --> D1
-    P7 --> P8[P8: Blast Radius]
-    P8 --> D1
-    P3 --> P9[P9: Auto-Triage]
-    P9 --> D1
-    D1 --> D2[(D2: Eclipse Ditto)]
+    P1[P1: Ingestion Engine] -->|Raw JSON / MQTT| P2[P2: Schema Validation]
+    P2 -->|Validated State| D1[(D1: PostgreSQL 16)]
+    P2 -->|Streamed Metrics| P3[P3: Hybrid Detection Rules & ML]
+    P3 -->|Triggered Detections| P4[P4: Incident Correlation]
+    P3 -->|Telemetry & Alerts| D1
+    P4 -->|Candidate IOCs| P5[P5: IOC Enrichment Engine]
+    P5 <-->|Reputation Query / Response| E8[Threat Intel APIs]
+    P5 -->|Enriched Indicators| D1
+    P3 -->|Anomaly Signals| P6[P6: Dynamic Risk Scoring]
+    P6 -->|Weighted Risk Scores| D1
+    P4 -->|Correlated Attack Events| P7[P7: Attack Story Reconstructor]
+    P7 -->|Chronological Narratives| D1
+    P7 -->|Root Assets| P8[P8: Blast Radius Engine]
+    P8 -->|Transitive Closures| D1
+    P3 -->|Real-time Alerts| P9[P9: Automated Triage Classifier]
+    P9 -->|Triage Verdicts| D1
+    D1 -->|Periodic 5s Sync| D2[(D2: Eclipse Ditto)]
+    D2 -->|Thing Model / Features| E7[Eclipse Ditto]
 
-    subgraph TB1["Trust Boundary 1: Container Network"]
+    subgraph TB1["Trust Boundary 1: Secure Container Network (Docker Bridge)"]
         P1
         P2
         P3
@@ -37,20 +39,24 @@ flowchart LR
         D2
     end
 
-    subgraph TB2["Trust Boundary 2: External"]
-        TI
-        A3
-        A4
+    subgraph TB2["Trust Boundary 2: Authenticated External Services"]
+        E5
+        E6
+        E7
+        E8
     end
 
-    subgraph TB3["Trust Boundary 3: Untrusted"]
-        A2
+    subgraph TB3["Trust Boundary 3: Untrusted External Zone"]
+        E1
+        E2
+        E3
+        E4
     end
 
-    classDef process fill:#d5e8d4,stroke:#82b366
-    classDef store fill:#e1d5e7,stroke:#9673a6
-    classDef entity fill:#dae8fc,stroke:#6c8ebf
+    classDef process fill:#d5e8d4,stroke:#82b366,stroke-width:1.5px
+    classDef store fill:#e1d5e7,stroke:#9673a6,stroke-width:1.5px
+    classDef entity fill:#dae8fc,stroke:#6c8ebf,stroke-width:1.5px
 
     class P1,P2,P3,P4,P5,P6,P7,P8,P9 process
     class D1,D2 store
-    class A1,A2,A3,A4,TI entity
+    class E1,E2,E3,E4,E5,E6,E7,E8 entity

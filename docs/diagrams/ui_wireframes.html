@@ -14,6 +14,13 @@
     .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
     .badge.high { background: #7d1a1a; color: #ffdcdc; }
     .badge.critical { background: #b91c1c; color: #fff; }
+    table { width: 100%; max-width: 420px; border-collapse: collapse; text-align: center; margin-top: 10px; font-size: 13px; }
+    th, td { border: 1px solid #30363d; padding: 8px; }
+    th { background: #21262d; color: #8b949e; }
+    .cell-tp { background: #143621; color: #3fb950; font-weight: 700; }
+    .cell-fp { background: #3b2816; color: #d29922; font-weight: 700; }
+    .cell-fn { background: #3b1818; color: #f85149; font-weight: 700; }
+    .cell-tn { background: #161b22; color: #8b949e; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -52,6 +59,12 @@
     <div class="kpi"><div class="kpi-label">RECALL</div><div class="kpi-value">1.00</div></div>
     <div class="kpi"><div class="kpi-label">F1</div><div class="kpi-value">0.94</div></div>
   </div>
+  <h4 style="color:#8b949e;">Confusion Matrix</h4>
+  <table>
+    <tr><th></th><th>Predicted Malicious</th><th>Predicted Benign</th></tr>
+    <tr><th>Actual Attack</th><td class="cell-tp">TP: 184</td><td class="cell-fn">FN: 0</td></tr>
+    <tr><th>Actual Normal</th><td class="cell-fp">FP: 22</td><td class="cell-tn">TN: 0</td></tr>
+  </table>
 </div>
 </body>
 </html>

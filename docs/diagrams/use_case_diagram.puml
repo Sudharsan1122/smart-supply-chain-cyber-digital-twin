@@ -16,36 +16,30 @@ actor "Threat Intel APIs" as TI
 
 rectangle "Smart Supply Chain Cyber Digital Twin" {
   usecase "Ingest Telemetry" as UC1
-  usecase "Ingest Security Event" as UC2
-  usecase "View Live Dashboard" as UC3
-  usecase "View Geographic Map" as UC4
-  usecase "Investigate Attack Story" as UC5
-  usecase "Review Triage Metrics" as UC6
-  usecase "Simulate Attack Scenario" as UC7
+  usecase "Ingest Event" as UC2
+  usecase "View Dashboard" as UC3
+  usecase "View Map" as UC4
+  usecase "Investigate Story" as UC5
+  usecase "Review Triage" as UC6
+  usecase "Simulate Attack" as UC7
   usecase "Extract IOCs" as UC8
   usecase "Enrich IOCs" as UC9
   usecase "Compute Blast Radius" as UC10
-  usecase "Auto-Triage Detections" as UC11
-  usecase "Sync Twin State to Ditto" as UC12
-  usecase "Pull Wazuh Alerts" as UC13
-  usecase "Read Suricata Logs" as UC14
-  usecase "Configure API Keys" as UC15
-  usecase "View Threat Intel" as UC16
-
+  usecase "Auto-Triage" as UC11
+  usecase "Sync to Ditto" as UC12
+  usecase "Pull Wazuh" as UC13
+  usecase "Read Suricata" as UC14
+  usecase "Configure Keys" as UC15
   usecase "Validate Payload" as VAL
-  usecase "Run Detection Rules" as DET
-  usecase "Correlate Incidents" as COR
+  usecase "Run Detection" as DET
+  usecase "Correlate" as COR
 }
 
 Analyst --> UC3
 Analyst --> UC4
 Analyst --> UC5
-Analyst --> UC16
 SOC --> UC6
-SOC --> UC5
-SOC --> UC11
 Admin --> UC15
-Admin --> UC12
 Attacker --> UC7
 Wazuh --> UC13
 Suricata --> UC14
@@ -57,7 +51,6 @@ UC2 ..> VAL : <<include>>
 VAL ..> DET : <<include>>
 DET ..> COR : <<include>>
 UC7 ..> UC1 : <<include>>
-UC7 ..> UC2 : <<include>>
 UC5 ..> UC10 : <<include>>
 UC6 ..> UC11 : <<include>>
 UC8 ..> UC9 : <<include>>

@@ -124,14 +124,17 @@ The orchestrator executes:
 
 ---
 
-## 📚 Project Documentation
+## Project Documentation
 
-| Document | Description |
-| :--- | :--- |
-| [**Architecture Guide**](docs/ARCHITECTURE.md) | Full pipeline diagram, component breakdown, 10-step data flow, and 20 database tables. |
-| [**Deployment Guide**](docs/DEPLOYMENT.md) | Local venv, Docker Compose stack, AWS cloud guide, configuration variables, and troubleshooting. |
-| [**API Reference**](docs/API.md) | Comprehensive endpoint reference across all 14 API functional groups. |
-| [**CI/CD Pipeline**](docs/CICD.md) | GitHub Actions workflow design, test automation, and container image publishing to GHCR. |
+| Document | Purpose |
+|----------|---------|
+| [docs/PHASE_1_REQUIREMENTS.md](docs/PHASE_1_REQUIREMENTS.md) | Phase 1: Requirements Engineering (53 requirements) |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
+| [docs/API.md](docs/API.md) | API reference |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Local + AWS deployment |
+| [docs/CICD.md](docs/CICD.md) | CI/CD pipeline |
+| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | STRIDE threat model |
+| [docs/diagrams/](docs/diagrams/) | All UML/ER/DFD diagrams |
 
 ---
 
