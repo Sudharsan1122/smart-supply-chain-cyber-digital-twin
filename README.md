@@ -134,6 +134,7 @@ The orchestrator executes:
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Local + AWS deployment |
 | [docs/CICD.md](docs/CICD.md) | CI/CD pipeline |
 | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | STRIDE threat model |
+| [docs/README_JIRA.md](docs/README_JIRA.md) | Jira Scrum setup, sprint plan, and traceability matrix |
 | [docs/diagrams/](docs/diagrams/) | All UML/ER/DFD diagrams |
 
 ---
