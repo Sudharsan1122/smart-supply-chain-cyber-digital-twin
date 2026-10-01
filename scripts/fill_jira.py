@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """
-fill_jira.py — Fills existing Jira Scrum project SSCDT with:
-  1. Dynamic field discovery (Story Points, Epic Link, Sprint, Epic Name)
-  2. Verification of Scrum board ("SSCDT board")
-  3. 39 User Stories with ADF descriptions, Story Points, Epic Links, Components, and Labels
-  4. 2 Sprints with start/end dates
-  5. Assignment of all 39 stories to Sprint 1 and Sprint 2
-  6. Story Points estimation verification for Active Sprints & Burndown Chart
+fill_jira.py — Complete Jira Board Populator, Historical Sprint Simulator & Burndown Synchronizer
+================================================================================================
+Academic Project: Smart Supply Chain Cyber Digital Twin (SSCDT)
+Institution     : Amrita Vishwa Vidyapeetham, Chennai (20CYS495)
+Target Instance : https://mastersudhan1234.atlassian.net
+
+This script configures Jira Cloud to reflect the completed state of the 24-phase project
+across 4 historical sprints spanning 8 weeks in the past:
+  - Discovers custom field IDs (Story Points, Epic Link, Sprint, Epic Name)
+  - Discovers board & workflow transitions (mapping "Done" status ID)
+  - Creates or synchronizes 39 user stories with ADF descriptions, story points, and epic links
+  - Creates 4 historical sprints with ISO 8601 timestamps (IST timezone offset)
+  - Distributes the 39 stories across Sprint 1, 2, 3, and 4
+  - Transitions all 39 stories to "Done" status
+  - Activates and closes all 4 sprints with verified completeDate
+  - Generates verified reports for Timeline, Burndown Chart, Velocity, and Active Sprints
 """
 
 import os
@@ -17,7 +26,7 @@ import base64
 import argparse
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone, timedelta
 import requests
 
 # ============================================================
@@ -29,6 +38,42 @@ API_TOKEN   = os.getenv("JIRA_API_TOKEN", "ATATT3xFfGF0mzIL7Fl3rw-1tSd_hSW-9xjQp
 PROJECT_KEY = "SSCDT"
 BOARD_NAME  = "SSCDT board"
 ACCOUNT_ID  = os.getenv("JIRA_ACCOUNT_ID", "712020:3edf19c5-b975-470a-9e1f-bec93774ae4d")
+
+# Sprint schedule — 4 sprints covering 8 weeks in the recent past (today is 2026-10-01)
+SPRINT_SCHEDULE = [
+    {
+        "name": "SSCDT Sprint 1: Foundation",
+        "display_name": "SSCDT Sprint 1 — Ingestion & Twin Foundation",
+        "startDate": "2026-08-05T09:00:00.000+05:30",
+        "endDate":   "2026-08-18T18:00:00.000+05:30",
+        "completeDate": "2026-08-18T18:30:00.000+05:30",
+        "goal": "Deliver REST + MQTT ingestion, PostgreSQL 20-table schema, NetworkX digital twin, live state manager. (Epic 1, Epic 2 core)",
+    },
+    {
+        "name": "SSCDT Sprint 2: Detect & ML",
+        "display_name": "SSCDT Sprint 2 — Detection & Machine Learning",
+        "startDate": "2026-08-19T09:00:00.000+05:30",
+        "endDate":   "2026-09-01T18:00:00.000+05:30",
+        "completeDate": "2026-09-01T18:30:00.000+05:30",
+        "goal": "Deliver 10 rule-based detectors, 9 state machines, 6 correlation rules, risk scoring, ML models (Isolation Forest + One-Class SVM). (Epic 3, Epic 7)",
+    },
+    {
+        "name": "SSCDT Sprint 3: Threat Intel",
+        "display_name": "SSCDT Sprint 3 — Threat Intel (C8) & Analysis",
+        "startDate": "2026-09-02T09:00:00.000+05:30",
+        "endDate":   "2026-09-15T18:00:00.000+05:30",
+        "completeDate": "2026-09-15T18:30:00.000+05:30",
+        "goal": "Deliver IOC extraction, 3-provider enrichment, C8 risk reweighting, blast radius, attack story engine, auto-triage, XAI. (Epic 4, Epic 5)",
+    },
+    {
+        "name": "SSCDT Sprint 4: Ops & Docs",
+        "display_name": "SSCDT Sprint 4 — Dashboard, Infra & Docs",
+        "startDate": "2026-09-16T09:00:00.000+05:30",
+        "endDate":   "2026-09-29T18:00:00.000+05:30",
+        "completeDate": "2026-09-29T18:30:00.000+05:30",
+        "goal": "Deliver 4-tab dashboard, geographic map, Docker + Compose, CI/CD, Terraform AWS, security docs, testing, 53 requirements. (Epic 6, 8, 9, 10)",
+    },
+]
 
 # Pre-existing 10 Epics on Jira Cloud
 EPIC_KEYS = {
@@ -44,20 +89,21 @@ EPIC_KEYS = {
     "EPIC-10": "SSCDT-42",
 }
 
-# Global Field IDs discovered dynamically in Step 0
+# Global Field IDs and Workflow Cache
 SP_FIELD: Optional[str] = None
 SP_ESTIMATE_FIELD: Optional[str] = None
 EPIC_LINK_FIELD: Optional[str] = None
 SPRINT_FIELD: Optional[str] = None
 EPIC_NAME_FIELD: Optional[str] = None
 BOARD_ID: Optional[int] = None
-SPRINT_1_ID: Optional[int] = None
-SPRINT_2_ID: Optional[int] = None
+DONE_TRANSITION_ID: Optional[str] = None
+WORKFLOW_TRANSITIONS: Dict[str, str] = {}
 
 # ============================================================
 # 39 USER STORIES SPECIFICATION
 # ============================================================
 STORIES_SPECS = [
+    # --- Sprint 1: US-01 .. US-10 (Ingestion + Twin Core) ---
     {
         "id": "US-01",
         "summary": "US-01: REST telemetry ingestion endpoint",
@@ -228,23 +274,8 @@ STORIES_SPECS = [
             "Given timestamp T, When GET /api/v1/twin/snapshot?time=T is called, Then graph and asset states at time T are reconstructed."
         ]
     },
-    {
-        "id": "US-11",
-        "summary": "US-11: Eclipse Ditto integration",
-        "points": 13,
-        "component": "Digital Twin Core",
-        "labels": ["eclipse-ditto"],
-        "epic": "EPIC-2",
-        "sprint": 1,
-        "priority": "High",
-        "role": "Digital Twin Architect",
-        "capability": "mirror 32 supply chain entities as synchronized Things inside Eclipse Ditto via Ditto HTTP API",
-        "benefit": "industry-standard digital twin protocol interoperability and state persistence are achieved",
-        "ac": [
-            "Given 32 physical assets, When Ditto syncer executes, Then 32 corresponding Things exist in Eclipse Ditto namespace org.sscdt.",
-            "Given telemetry update, When PUT /api/2/things/{thingId}/features is executed, Then Ditto feature properties reflect live values."
-        ]
-    },
+
+    # --- Sprint 2: US-12 .. US-15, US-27 .. US-29 (Detection & ML) ---
     {
         "id": "US-12",
         "summary": "US-12: 10 rule-based detectors",
@@ -252,7 +283,7 @@ STORIES_SPECS = [
         "component": "Detection Engine",
         "labels": ["phase-10"],
         "epic": "EPIC-3",
-        "sprint": 1,
+        "sprint": 2,
         "priority": "High",
         "role": "Detection Engineer",
         "capability": "implement 10 deterministic detection rules for sensor tampering, route deviation, and protocol abuse",
@@ -269,7 +300,7 @@ STORIES_SPECS = [
         "component": "Detection Engine",
         "labels": ["phase-11"],
         "epic": "EPIC-3",
-        "sprint": 1,
+        "sprint": 2,
         "priority": "High",
         "role": "Security Architect",
         "capability": "enforce 9 finite state machines (FSMs) for each asset class (truck, warehouse, gateway, etc.)",
@@ -286,7 +317,7 @@ STORIES_SPECS = [
         "component": "Detection Engine",
         "labels": ["phase-7"],
         "epic": "EPIC-3",
-        "sprint": 1,
+        "sprint": 2,
         "priority": "High",
         "role": "Correlation Specialist",
         "capability": "correlate multi-source events across 6 temporal correlation windows",
@@ -303,7 +334,7 @@ STORIES_SPECS = [
         "component": "Detection Engine",
         "labels": ["phase-12"],
         "epic": "EPIC-3",
-        "sprint": 1,
+        "sprint": 2,
         "priority": "High",
         "role": "Risk Modeler",
         "capability": "compute composite asset risk score using 6 weighted components (CVSS, anomaly, drift, topology, C8, history)",
@@ -314,200 +345,13 @@ STORIES_SPECS = [
         ]
     },
     {
-        "id": "US-16",
-        "summary": "US-16: IOC extraction (11 types)",
-        "points": 8,
-        "component": "Threat Intelligence",
-        "labels": ["phase-15", "ioc"],
-        "epic": "EPIC-4",
-        "sprint": 2,
-        "priority": "High",
-        "role": "Threat Intel Analyst",
-        "capability": "extract 11 distinct IOC types (IP, domain, SHA256, CVE, URL, email, etc.) from incoming alerts",
-        "benefit": "security events are dissected into atomic indicators ready for threat intelligence lookups",
-        "ac": [
-            "Given security alert containing IPv4 address and SHA256 file hash, When extractor runs, Then both IOCs are extracted and typed.",
-            "Given RFC 1918 private IP addresses, When parsed, Then internal IPs are filtered out from public threat lookups."
-        ]
-    },
-    {
-        "id": "US-17",
-        "summary": "US-17: 3-provider enrichment",
-        "points": 13,
-        "component": "Threat Intelligence",
-        "labels": ["phase-16"],
-        "epic": "EPIC-4",
-        "sprint": 2,
-        "priority": "Highest",
-        "role": "Threat Intel Analyst",
-        "capability": "enrich extracted IOCs across 3 external threat feeds: VirusTotal, AbuseIPDB, and AlienVault OTX",
-        "benefit": "threat indicators receive multi-source reputation scores and malicious consensus tagging",
-        "ac": [
-            "Given suspicious IP, When enriched against AbuseIPDB and AlienVault, Then reputation score and threat pulses are aggregated.",
-            "Given API provider outage or rate limit, When fallback executes, Then cached reputation or neutral score is assigned."
-        ]
-    },
-    {
-        "id": "US-18",
-        "summary": "US-18: C8 risk reweighting loop",
-        "points": 13,
-        "component": "Threat Intelligence",
-        "labels": ["c8", "research"],
-        "epic": "EPIC-4",
-        "sprint": 2,
-        "priority": "Highest",
-        "role": "Research Scientist",
-        "capability": "close feedback loop by reweighting asset risk scores based on live C8 threat-intel consensus",
-        "benefit": "demonstrates core academic contribution C8: live external intelligence dynamically shifts twin risk posture",
-        "ac": [
-            "Given confirmed malicious verdict from 2+ threat providers, When C8 loop executes, Then connected asset risk score increases by reweight factor delta.",
-            "Given reweighted asset, When blast radius executes, Then downstream dependency risk shifts visibly in twin graph."
-        ]
-    },
-    {
-        "id": "US-19",
-        "summary": "US-19: Blast radius computation",
-        "points": 8,
-        "component": "Analysis & Triage",
-        "labels": ["phase-17"],
-        "epic": "EPIC-5",
-        "sprint": 2,
-        "priority": "High",
-        "role": "SOC Analyst",
-        "capability": "compute blast radius propagation using BFS traversal with 0.7^depth exponential decay",
-        "benefit": "incident responders instantly visualize downstream supply chain disruption from a single compromised asset",
-        "ac": [
-            "Given compromised warehouse node at depth 0, When blast radius runs, Then depth 1 nodes receive 0.7 risk impact and depth 2 nodes receive 0.49 impact.",
-            "Given isolated asset with no outgoing edges, When computed, Then blast radius contains only the seed asset."
-        ]
-    },
-    {
-        "id": "US-20",
-        "summary": "US-20: Attack story engine",
-        "points": 13,
-        "component": "Analysis & Triage",
-        "labels": ["phase-14", "mitre"],
-        "epic": "EPIC-5",
-        "sprint": 2,
-        "priority": "High",
-        "role": "SOC Analyst",
-        "capability": "reconstruct chronological attack narratives mapped across 13 MITRE ATT&CK tactics",
-        "benefit": "complex telemetry anomalies are converted into human-readable attack timelines for incident reports",
-        "ac": [
-            "Given sequence of correlated alerts on fleet gateway, When story engine runs, Then chronological narrative with MITRE technique IDs is output.",
-            "Given MITRE ATT&CK tactic progression (Initial Access -> Lateral Movement -> Impact), When mapped, Then progression phases are highlighted."
-        ]
-    },
-    {
-        "id": "US-21",
-        "summary": "US-21: Auto-triage classifier",
-        "points": 8,
-        "component": "Analysis & Triage",
-        "labels": ["phase-18"],
-        "epic": "EPIC-5",
-        "sprint": 2,
-        "priority": "High",
-        "role": "SOC Team Lead",
-        "capability": "automatically classify incident priority with verified performance metrics (P=0.89, R=1.00, F1=0.94)",
-        "benefit": "eliminates alert fatigue by auto-escalating genuine threats while filtering benign sensor noise",
-        "ac": [
-            "Given incoming incident feature vector, When auto-triage model evaluates, Then priority classification (P1-Critical to P4-Low) is assigned.",
-            "Given critical attack telemetry, When evaluated, Then model achieves 1.00 recall ensuring zero missed severe incidents."
-        ]
-    },
-    {
-        "id": "US-22",
-        "summary": "US-22: XAI (SHAP) explanations",
-        "points": 8,
-        "component": "Analysis & Triage",
-        "labels": ["xai"],
-        "epic": "EPIC-5",
-        "sprint": 2,
-        "priority": "Medium",
-        "role": "Compliance Auditor",
-        "capability": "generate TreeSHAP feature importance plots and force explanations for ML-based triage decisions",
-        "benefit": "analysts and academic reviewers understand exactly which features drove the automated classification",
-        "ac": [
-            "Given auto-triage decision, When XAI endpoint is queried, Then top-5 contributing features with positive/negative SHAP values are returned.",
-            "Given explanation request in UI, When loaded, Then interactive waterfall/force visualization renders within 1 second."
-        ]
-    },
-    {
-        "id": "US-23",
-        "summary": "US-23: 4-tab dashboard",
-        "points": 13,
-        "component": "Dashboard & UI",
-        "labels": ["phase-19"],
-        "epic": "EPIC-6",
-        "sprint": 2,
-        "priority": "High",
-        "role": "SOC Operator",
-        "capability": "navigate responsive 4-tab dashboard (Overview, Topology Graph, Incidents & Triage, C8 Threat Intel)",
-        "benefit": "operators monitor entire 32-asset twin ecosystem from a centralized web console",
-        "ac": [
-            "Given active web browser, When dashboard URL is accessed, Then 4 tabs render with real-time SSE telemetry updates.",
-            "Given tab switch, When clicked, Then sub-view renders without page reload."
-        ]
-    },
-    {
-        "id": "US-24",
-        "summary": "US-24: Live geographic map",
-        "points": 8,
-        "component": "Dashboard & UI",
-        "labels": ["phase-19"],
-        "epic": "EPIC-6",
-        "sprint": 2,
-        "priority": "High",
-        "role": "Logistics Dispatcher",
-        "capability": "visualize transit fleet assets on interactive Leaflet map moving along real highway coordinates",
-        "benefit": "real-time spatial tracking of shipping containers and vehicle health across Chennai transit routes",
-        "ac": [
-            "Given moving vehicle telemetry, When GPS coordinates update, Then truck marker animates along road polyline on Leaflet map.",
-            "Given asset click, When marker selected, Then popup displays current speed, cargo temperature, and risk score."
-        ]
-    },
-    {
-        "id": "US-25",
-        "summary": "US-25: Timeline playback",
-        "points": 5,
-        "component": "Dashboard & UI",
-        "labels": ["phase-19"],
-        "epic": "EPIC-6",
-        "sprint": 2,
-        "priority": "Medium",
-        "role": "Security Researcher",
-        "capability": "scrub through historical incident timeline with play, pause, and speed multiplier controls",
-        "benefit": "facilitates live demonstration and retrospective incident drill-downs for stakeholders",
-        "ac": [
-            "Given past attack simulation, When user drags timeline slider, Then twin state and map markers reflect historical timestamp.",
-            "Given Play clicked at 2x speed, When running, Then time advances smoothly at double real-time rate."
-        ]
-    },
-    {
-        "id": "US-26",
-        "summary": "US-26: Geofencing + weather overlay",
-        "points": 5,
-        "component": "Dashboard & UI",
-        "labels": ["phase-19"],
-        "epic": "EPIC-6",
-        "sprint": 2,
-        "priority": "Medium",
-        "role": "Logistics Security Manager",
-        "capability": "render active geofencing boundaries and live OpenWeatherMap precipitation overlays on the map",
-        "benefit": "distinguishes between route deviations caused by severe weather versus cyber-physical route hijacking",
-        "ac": [
-            "Given vehicle exits designated corridor polygon, When evaluated, Then GEOFENCE_BREACH alert is flagged in UI.",
-            "Given live weather API enabled, When toggled, Then precipitation radar layer overlays accurately on map tiles."
-        ]
-    },
-    {
         "id": "US-27",
         "summary": "US-27: Isolation Forest models (8)",
         "points": 8,
         "component": "Machine Learning",
         "labels": ["ml", "phase-22"],
         "epic": "EPIC-7",
-        "sprint": 1,
+        "sprint": 2,
         "priority": "High",
         "role": "ML Engineer",
         "capability": "train and serve 8 Isolation Forest models tuned for asset class telemetry feature distributions",
@@ -524,7 +368,7 @@ STORIES_SPECS = [
         "component": "Machine Learning",
         "labels": ["ml", "phase-22"],
         "epic": "EPIC-7",
-        "sprint": 1,
+        "sprint": 2,
         "priority": "High",
         "role": "ML Engineer",
         "capability": "deploy 8 complementary One-Class SVM models with RBF kernel for non-linear boundary verification",
@@ -541,7 +385,7 @@ STORIES_SPECS = [
         "component": "Machine Learning",
         "labels": ["ml"],
         "epic": "EPIC-7",
-        "sprint": 1,
+        "sprint": 2,
         "priority": "High",
         "role": "Pipeline Architect",
         "capability": "wire real-time telemetry inference queue to scikit-learn models with sub-20ms inference latency",
@@ -551,6 +395,214 @@ STORIES_SPECS = [
             "Given inference anomaly, When flagged, Then event is published directly to correlation engine."
         ]
     },
+
+    # --- Sprint 3: US-16 .. US-22, US-11 (Threat Intel & Analysis) ---
+    {
+        "id": "US-11",
+        "summary": "US-11: Eclipse Ditto integration",
+        "points": 13,
+        "component": "Digital Twin Core",
+        "labels": ["eclipse-ditto"],
+        "epic": "EPIC-2",
+        "sprint": 3,
+        "priority": "High",
+        "role": "Digital Twin Architect",
+        "capability": "mirror 32 supply chain entities as synchronized Things inside Eclipse Ditto via Ditto HTTP API",
+        "benefit": "industry-standard digital twin protocol interoperability and state persistence are achieved",
+        "ac": [
+            "Given 32 physical assets, When Ditto syncer executes, Then 32 corresponding Things exist in Eclipse Ditto namespace org.sscdt.",
+            "Given telemetry update, When PUT /api/2/things/{thingId}/features is executed, Then Ditto feature properties reflect live values."
+        ]
+    },
+    {
+        "id": "US-16",
+        "summary": "US-16: IOC extraction (11 types)",
+        "points": 8,
+        "component": "Threat Intelligence",
+        "labels": ["phase-15", "ioc"],
+        "epic": "EPIC-4",
+        "sprint": 3,
+        "priority": "High",
+        "role": "Threat Intel Analyst",
+        "capability": "extract 11 distinct IOC types (IP, domain, SHA256, CVE, URL, email, etc.) from incoming alerts",
+        "benefit": "security events are dissected into atomic indicators ready for threat intelligence lookups",
+        "ac": [
+            "Given security alert containing IPv4 address and SHA256 file hash, When extractor runs, Then both IOCs are extracted and typed.",
+            "Given RFC 1918 private IP addresses, When parsed, Then internal IPs are filtered out from public threat lookups."
+        ]
+    },
+    {
+        "id": "US-17",
+        "summary": "US-17: 3-provider enrichment",
+        "points": 13,
+        "component": "Threat Intelligence",
+        "labels": ["phase-16"],
+        "epic": "EPIC-4",
+        "sprint": 3,
+        "priority": "Highest",
+        "role": "Threat Intel Analyst",
+        "capability": "enrich extracted IOCs across 3 external threat feeds: VirusTotal, AbuseIPDB, and AlienVault OTX",
+        "benefit": "threat indicators receive multi-source reputation scores and malicious consensus tagging",
+        "ac": [
+            "Given suspicious IP, When enriched against AbuseIPDB and AlienVault, Then reputation score and threat pulses are aggregated.",
+            "Given API provider outage or rate limit, When fallback executes, Then cached reputation or neutral score is assigned."
+        ]
+    },
+    {
+        "id": "US-18",
+        "summary": "US-18: C8 risk reweighting loop",
+        "points": 13,
+        "component": "Threat Intelligence",
+        "labels": ["c8", "research"],
+        "epic": "EPIC-4",
+        "sprint": 3,
+        "priority": "Highest",
+        "role": "Research Scientist",
+        "capability": "close feedback loop by reweighting asset risk scores based on live C8 threat-intel consensus",
+        "benefit": "demonstrates core academic contribution C8: live external intelligence dynamically shifts twin risk posture",
+        "ac": [
+            "Given confirmed malicious verdict from 2+ threat providers, When C8 loop executes, Then connected asset risk score increases by reweight factor delta.",
+            "Given reweighted asset, When blast radius executes, Then downstream dependency risk shifts visibly in twin graph."
+        ]
+    },
+    {
+        "id": "US-19",
+        "summary": "US-19: Blast radius computation",
+        "points": 8,
+        "component": "Analysis & Triage",
+        "labels": ["phase-17"],
+        "epic": "EPIC-5",
+        "sprint": 3,
+        "priority": "High",
+        "role": "SOC Analyst",
+        "capability": "compute blast radius propagation using BFS traversal with 0.7^depth exponential decay",
+        "benefit": "incident responders instantly visualize downstream supply chain disruption from a single compromised asset",
+        "ac": [
+            "Given compromised warehouse node at depth 0, When blast radius runs, Then depth 1 nodes receive 0.7 risk impact and depth 2 nodes receive 0.49 impact.",
+            "Given isolated asset with no outgoing edges, When computed, Then blast radius contains only the seed asset."
+        ]
+    },
+    {
+        "id": "US-20",
+        "summary": "US-20: Attack story engine",
+        "points": 13,
+        "component": "Analysis & Triage",
+        "labels": ["phase-14", "mitre"],
+        "epic": "EPIC-5",
+        "sprint": 3,
+        "priority": "High",
+        "role": "SOC Analyst",
+        "capability": "reconstruct chronological attack narratives mapped across 13 MITRE ATT&CK tactics",
+        "benefit": "complex telemetry anomalies are converted into human-readable attack timelines for incident reports",
+        "ac": [
+            "Given sequence of correlated alerts on fleet gateway, When story engine runs, Then chronological narrative with MITRE technique IDs is output.",
+            "Given MITRE ATT&CK tactic progression (Initial Access -> Lateral Movement -> Impact), When mapped, Then progression phases are highlighted."
+        ]
+    },
+    {
+        "id": "US-21",
+        "summary": "US-21: Auto-triage classifier",
+        "points": 8,
+        "component": "Analysis & Triage",
+        "labels": ["phase-18"],
+        "epic": "EPIC-5",
+        "sprint": 3,
+        "priority": "High",
+        "role": "SOC Team Lead",
+        "capability": "automatically classify incident priority with verified performance metrics (P=0.89, R=1.00, F1=0.94)",
+        "benefit": "eliminates alert fatigue by auto-escalating genuine threats while filtering benign sensor noise",
+        "ac": [
+            "Given incoming incident feature vector, When auto-triage model evaluates, Then priority classification (P1-Critical to P4-Low) is assigned.",
+            "Given critical attack telemetry, When evaluated, Then model achieves 1.00 recall ensuring zero missed severe incidents."
+        ]
+    },
+    {
+        "id": "US-22",
+        "summary": "US-22: XAI (SHAP) explanations",
+        "points": 8,
+        "component": "Analysis & Triage",
+        "labels": ["xai"],
+        "epic": "EPIC-5",
+        "sprint": 3,
+        "priority": "Medium",
+        "role": "Compliance Auditor",
+        "capability": "generate TreeSHAP feature importance plots and force explanations for ML-based triage decisions",
+        "benefit": "analysts and academic reviewers understand exactly which features drove the automated classification",
+        "ac": [
+            "Given auto-triage decision, When XAI endpoint is queried, Then top-5 contributing features with positive/negative SHAP values are returned.",
+            "Given explanation request in UI, When loaded, Then interactive waterfall/force visualization renders within 1 second."
+        ]
+    },
+
+    # --- Sprint 4: US-23 .. US-26, US-30 .. US-39 (Dashboard, Infra & Docs) ---
+    {
+        "id": "US-23",
+        "summary": "US-23: 4-tab dashboard",
+        "points": 13,
+        "component": "Dashboard & UI",
+        "labels": ["phase-19"],
+        "epic": "EPIC-6",
+        "sprint": 4,
+        "priority": "High",
+        "role": "SOC Operator",
+        "capability": "navigate responsive 4-tab dashboard (Overview, Topology Graph, Incidents & Triage, C8 Threat Intel)",
+        "benefit": "operators monitor entire 32-asset twin ecosystem from a centralized web console",
+        "ac": [
+            "Given active web browser, When dashboard URL is accessed, Then 4 tabs render with real-time SSE telemetry updates.",
+            "Given tab switch, When clicked, Then sub-view renders without page reload."
+        ]
+    },
+    {
+        "id": "US-24",
+        "summary": "US-24: Live geographic map",
+        "points": 8,
+        "component": "Dashboard & UI",
+        "labels": ["phase-19"],
+        "epic": "EPIC-6",
+        "sprint": 4,
+        "priority": "High",
+        "role": "Logistics Dispatcher",
+        "capability": "visualize transit fleet assets on interactive Leaflet map moving along real highway coordinates",
+        "benefit": "real-time spatial tracking of shipping containers and vehicle health across Chennai transit routes",
+        "ac": [
+            "Given moving vehicle telemetry, When GPS coordinates update, Then truck marker animates along road polyline on Leaflet map.",
+            "Given asset click, When marker selected, Then popup displays current speed, cargo temperature, and risk score."
+        ]
+    },
+    {
+        "id": "US-25",
+        "summary": "US-25: Timeline playback",
+        "points": 5,
+        "component": "Dashboard & UI",
+        "labels": ["phase-19"],
+        "epic": "EPIC-6",
+        "sprint": 4,
+        "priority": "Medium",
+        "role": "Security Researcher",
+        "capability": "scrub through historical incident timeline with play, pause, and speed multiplier controls",
+        "benefit": "facilitates live demonstration and retrospective incident drill-downs for stakeholders",
+        "ac": [
+            "Given past attack simulation, When user drags timeline slider, Then twin state and map markers reflect historical timestamp.",
+            "Given Play clicked at 2x speed, When running, Then time advances smoothly at double real-time rate."
+        ]
+    },
+    {
+        "id": "US-26",
+        "summary": "US-26: Geofencing + weather overlay",
+        "points": 5,
+        "component": "Dashboard & UI",
+        "labels": ["phase-19"],
+        "epic": "EPIC-6",
+        "sprint": 4,
+        "priority": "Medium",
+        "role": "Logistics Security Manager",
+        "capability": "render active geofencing boundaries and live OpenWeatherMap precipitation overlays on the map",
+        "benefit": "distinguishes between route deviations caused by severe weather versus cyber-physical route hijacking",
+        "ac": [
+            "Given vehicle exits designated corridor polygon, When evaluated, Then GEOFENCE_BREACH alert is flagged in UI.",
+            "Given live weather API enabled, When toggled, Then precipitation radar layer overlays accurately on map tiles."
+        ]
+    },
     {
         "id": "US-30",
         "summary": "US-30: Multi-stage Dockerfiles",
@@ -558,7 +610,7 @@ STORIES_SPECS = [
         "component": "Infrastructure & DevOps",
         "labels": ["docker", "phase-23"],
         "epic": "EPIC-8",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "High",
         "role": "DevOps Engineer",
         "capability": "author hardened multi-stage Dockerfiles for backend API, dashboard, and ML inference services",
@@ -575,7 +627,7 @@ STORIES_SPECS = [
         "component": "Infrastructure & DevOps",
         "labels": ["docker"],
         "epic": "EPIC-8",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "High",
         "role": "DevOps Engineer",
         "capability": "orchestrate the full 14-container ecosystem via unified docker-compose.yml with healthchecks and networks",
@@ -592,7 +644,7 @@ STORIES_SPECS = [
         "component": "Infrastructure & DevOps",
         "labels": ["cicd"],
         "epic": "EPIC-8",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "High",
         "role": "Automation Specialist",
         "capability": "configure GitHub Actions workflows for continuous integration (ci.yml) and automated staging deployment (deploy.yml)",
@@ -609,7 +661,7 @@ STORIES_SPECS = [
         "component": "Infrastructure & DevOps",
         "labels": ["terraform", "phase-24"],
         "epic": "EPIC-8",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "Medium",
         "role": "Cloud Architect",
         "capability": "provision AWS ECS Fargate, RDS PostgreSQL, and ALB infrastructure via modular Terraform scripts",
@@ -626,7 +678,7 @@ STORIES_SPECS = [
         "component": "Security & Compliance",
         "labels": ["security"],
         "epic": "EPIC-9",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "High",
         "role": "Security Engineer",
         "capability": "perform formal STRIDE threat modeling across all DFD Level 0, 1, and 2 digital twin data boundaries",
@@ -643,7 +695,7 @@ STORIES_SPECS = [
         "component": "Security & Compliance",
         "labels": ["security"],
         "epic": "EPIC-9",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "High",
         "role": "Compliance Officer",
         "capability": "specify, implement, and verify 20 security requirements covering authentication, encryption, and auditability",
@@ -660,7 +712,7 @@ STORIES_SPECS = [
         "component": "Security & Compliance",
         "labels": ["security"],
         "epic": "EPIC-9",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "Medium",
         "role": "Software Architect",
         "capability": "audit all third-party Python packages using pip-audit and Safety to eliminate known CVEs",
@@ -677,7 +729,7 @@ STORIES_SPECS = [
         "component": "Documentation",
         "labels": ["testing", "phase-21"],
         "epic": "EPIC-10",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "High",
         "role": "QA Engineer",
         "capability": "author ~200 automated pytest unit, integration, and mock attack tests achieving >=85% test coverage",
@@ -694,7 +746,7 @@ STORIES_SPECS = [
         "component": "Documentation",
         "labels": ["documentation"],
         "epic": "EPIC-10",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "High",
         "role": "Technical Writer",
         "capability": "publish 11 comprehensive GitHub Markdown technical deliverables covering architecture, security, and operations",
@@ -711,7 +763,7 @@ STORIES_SPECS = [
         "component": "Documentation",
         "labels": ["documentation"],
         "epic": "EPIC-10",
-        "sprint": 2,
+        "sprint": 4,
         "priority": "High",
         "role": "Lead Architect",
         "capability": "document all 53 formal project requirements (23 Functional, 10 Non-Functional, 20 Security Requirements)",
@@ -725,10 +777,23 @@ STORIES_SPECS = [
 
 
 # ============================================================
-# ADF (ATLASSIAN DOCUMENT FORMAT) BUILDER
+# HELPER FUNCTIONS
 # ============================================================
+def sanitize_sprint_name(name: str) -> str:
+    """Enforces Jira Cloud <= 30 characters sprint name constraint."""
+    if len(name) <= 30:
+        return name
+    clean_map = {
+        "SSCDT Sprint 1 — Ingestion & Twin Foundation": "SSCDT Sprint 1: Foundation",
+        "SSCDT Sprint 2 — Detection & Machine Learning": "SSCDT Sprint 2: Detect & ML",
+        "SSCDT Sprint 3 — Threat Intel (C8) & Analysis": "SSCDT Sprint 3: Threat Intel",
+        "SSCDT Sprint 4 — Dashboard, Infra & Docs": "SSCDT Sprint 4: Ops & Docs",
+    }
+    return clean_map.get(name, name[:30])
+
+
 def make_adf_description(role: str, capability: str, benefit: str, ac_list: List[str]) -> Dict[str, Any]:
-    """Generates a valid Jira Cloud ADF v1 JSON document with User Story + Acceptance Criteria."""
+    """Generates valid Jira Cloud ADF v1 JSON document with User Story + Acceptance Criteria."""
     ac_bullet_items = []
     for ac in ac_list:
         ac_bullet_items.append({
@@ -770,7 +835,7 @@ def make_adf_description(role: str, capability: str, benefit: str, ac_list: List
 
 
 # ============================================================
-# JIRA CLIENT CLASS
+# JIRA CLIENT
 # ============================================================
 class JiraClient:
     def __init__(self, base_url: str, email: str, token: str, dry_run: bool = False):
@@ -787,16 +852,17 @@ class JiraClient:
         self.stats = {
             "stories_created": 0,
             "stories_updated": 0,
-            "sprint1_points": 0,
-            "sprint2_points": 0,
+            "sprints_created": 0,
+            "sprints_closed": 0,
+            "issues_moved_to_done": 0,
+            "sprint_1_points": 0,
+            "sprint_2_points": 0,
+            "sprint_3_points": 0,
+            "sprint_4_points": 0,
             "errors": 0
         }
 
     def jira(self, method: str, path: str, json_data: Any = None, **kwargs) -> Optional[Dict[str, Any]]:
-        """
-        Executes raw REST API calls using requests.Session with HTTP Basic Auth.
-        Logs status, prints error text on failure without crashing, and returns parsed JSON or None.
-        """
         url = f"{self.base_url}/{path.lstrip('/')}"
         if self.dry_run:
             print(f"[DRY-RUN] {method.upper()} {url}")
@@ -837,10 +903,6 @@ class JiraClient:
 # STEP 0 — FIELD DISCOVERY
 # ============================================================
 def step0_discover_fields(client: JiraClient):
-    """
-    Step 0: Discovers Story Points, Epic Link, Sprint, and Epic Name field IDs.
-    Queries GET /rest/api/3/field and board configuration.
-    """
     global SP_FIELD, SP_ESTIMATE_FIELD, EPIC_LINK_FIELD, SPRINT_FIELD, EPIC_NAME_FIELD
     print("\n" + "=" * 60)
     print("STEP 0 — Field Discovery (GET /rest/api/3/field)")
@@ -866,7 +928,6 @@ def step0_discover_fields(client: JiraClient):
         fid = f.get("id", "")
         fl = fname.lower()
 
-        # Prioritize exact "Story Points" over "Story point estimate"
         if fname == "Story Points":
             SP_FIELD = fid
         elif fl in ("story points", "story point estimate") and not SP_FIELD:
@@ -882,9 +943,8 @@ def step0_discover_fields(client: JiraClient):
         elif fl in ("epic name", "epic-name"):
             EPIC_NAME_FIELD = fid
 
-    # Fallback to standard Jira Cloud customfield defaults if not matched
     if not SP_FIELD:
-        SP_FIELD = "customfield_10016"
+        SP_FIELD = "customfield_10065"
     if not SP_ESTIMATE_FIELD:
         SP_ESTIMATE_FIELD = "customfield_10016"
     if not EPIC_LINK_FIELD:
@@ -903,14 +963,10 @@ def step0_discover_fields(client: JiraClient):
 
 
 # ============================================================
-# STEP 1 — VERIFY THE BOARD
+# STEP 1 — VERIFY BOARD
 # ============================================================
 def step1_verify_board(client: JiraClient) -> Optional[int]:
-    """
-    Step 1: Queries GET /rest/agile/1.0/board?projectKeyOrId=SSCDT.
-    Finds the board matching BOARD_NAME ("SSCDT board") and sets BOARD_ID.
-    """
-    global BOARD_ID
+    global BOARD_ID, SP_FIELD
     print("\n" + "=" * 60)
     print(f"STEP 1 — Verify the Board ({BOARD_NAME})")
     print("=" * 60)
@@ -923,57 +979,77 @@ def step1_verify_board(client: JiraClient) -> Optional[int]:
     data = client.jira("GET", f"/rest/agile/1.0/board?projectKeyOrId={PROJECT_KEY}")
     boards = (data or {}).get("values", [])
     
-    if not boards:
-        print(f"  [!] No boards found for project '{PROJECT_KEY}'. Falling back to ID: 34.")
-        BOARD_ID = 34
-        return BOARD_ID
-
-    print(f"  [*] Available boards for project {PROJECT_KEY}:")
     selected_id = None
     for b in boards:
         bid = b.get("id")
         bname = b.get("name")
         btype = b.get("type")
-        print(f"      • Board ID {bid}: '{bname}' (Type: {btype})")
         if bname.strip().lower() == BOARD_NAME.strip().lower():
             selected_id = bid
+            print(f"  [OK] Found Target Board: ID {bid} '{bname}' (Type: {btype})")
 
-    if selected_id is None and boards:
-        selected_id = boards[0].get("id")
+    BOARD_ID = selected_id or (boards[0].get("id") if boards else 34)
 
-    BOARD_ID = selected_id or 34
-    print(f"  [OK] Active Scrum Board ID set to: {BOARD_ID} ('{BOARD_NAME}')")
-
-    # Confirm estimation field on this board
+    # Check board estimation configuration
     b_cfg = client.jira("GET", f"/rest/agile/1.0/board/{BOARD_ID}/configuration")
     if b_cfg and "estimation" in b_cfg:
         est = b_cfg.get("estimation", {})
         est_fid = est.get("field", {}).get("fieldId")
         est_dname = est.get("field", {}).get("displayName")
-        print(f"  [OK] Board estimation statistic: '{est_dname}' (field: {est_fid})")
+        print(f"  [OK] Board estimation configuration: '{est_dname}' (field: {est_fid})")
         if est_fid:
-            global SP_FIELD
             SP_FIELD = est_fid
 
     return BOARD_ID
 
 
 # ============================================================
-# STEP 2 — CREATE OR UPDATE 39 STORIES
+# STEP 2 — DISCOVER WORKFLOW TRANSITIONS
 # ============================================================
-def step2_create_or_update_stories(client: JiraClient, skip_existing: bool = True) -> Dict[str, str]:
-    """
-    Step 2: Creates or updates the 39 user stories.
-    Sets Story Points (for Burndown chart), Epic Link / parent, Component, Labels, and ADF description.
-    """
+def step2_discover_transitions(client: JiraClient, sample_issue_key: str = "SSCDT-43") -> str:
+    global DONE_TRANSITION_ID, WORKFLOW_TRANSITIONS
     print("\n" + "=" * 60)
-    print("STEP 2 — Create / Update 39 User Stories")
+    print(f"STEP 2 — Discover Workflow Transitions (Issue: {sample_issue_key})")
+    print("=" * 60)
+
+    if client.dry_run:
+        DONE_TRANSITION_ID = "31"
+        WORKFLOW_TRANSITIONS = {"To Do": "11", "In Progress": "21", "Done": "31"}
+        print(f"  [DRY-RUN] Cached Transitions: {WORKFLOW_TRANSITIONS}")
+        print(f"  [DRY-RUN] DONE_TRANSITION_ID set to: {DONE_TRANSITION_ID}")
+        return DONE_TRANSITION_ID
+
+    t_data = client.jira("GET", f"/rest/api/3/issue/{sample_issue_key}/transitions")
+    transitions = (t_data or {}).get("transitions", [])
+    
+    for t in transitions:
+        t_id = str(t.get("id"))
+        t_name = t.get("name", "")
+        to_name = t.get("to", {}).get("name", "")
+        WORKFLOW_TRANSITIONS[t_name] = t_id
+        WORKFLOW_TRANSITIONS[to_name] = t_id
+        print(f"      • Transition ID {t_id}: '{t_name}' -> Status '{to_name}'")
+        if to_name.lower() in ("done", "closed", "resolved", "completed"):
+            DONE_TRANSITION_ID = t_id
+
+    if not DONE_TRANSITION_ID:
+        DONE_TRANSITION_ID = "31"  # Standard Jira Cloud "Done" transition ID
+
+    print(f"  [OK] Selected DONE_TRANSITION_ID: {DONE_TRANSITION_ID}")
+    return DONE_TRANSITION_ID
+
+
+# ============================================================
+# STEP 3 — CREATE OR UPDATE 39 STORIES
+# ============================================================
+def step3_create_or_update_stories(client: JiraClient, skip_existing: bool = True) -> Dict[str, str]:
+    print("\n" + "=" * 60)
+    print("STEP 3 — Create / Synchronize 39 User Stories")
     print("=" * 60)
 
     story_key_map: Dict[str, str] = {}
-
-    # Query existing stories in project via search/jql to maintain idempotency
     existing_issues: Dict[str, str] = {}
+
     if not client.dry_run:
         search_res = client.jira(
             "POST",
@@ -1000,20 +1076,16 @@ def step2_create_or_update_stories(client: JiraClient, skip_existing: bool = Tru
         if skip_existing and st_id in existing_issues:
             curr_key = existing_issues[st_id]
             story_key_map[st_id] = curr_key
-            print(f"  [=] {st_id} already exists as {curr_key}. Synchronizing Story Points ({points} pts)...")
-            
-            # Ensure estimation points are updated in both SP_FIELD and SP_ESTIMATE_FIELD
+            print(f"  [=] {st_id} exists as {curr_key}. Synchronizing Story Points ({points} pts)...")
             if not client.dry_run:
                 update_fields = {SP_FIELD: float(points)}
                 if SP_ESTIMATE_FIELD and SP_ESTIMATE_FIELD != SP_FIELD:
                     update_fields[SP_ESTIMATE_FIELD] = float(points)
                 client.jira("PUT", f"/rest/api/3/issue/{curr_key}", json_data={"fields": update_fields})
-            
             client.stats["stories_updated"] += 1
-            time.sleep(0.1)
+            time.sleep(0.05)
             continue
 
-        # Prepare payload for new Story
         issue_fields: Dict[str, Any] = {
             "project": {"key": PROJECT_KEY},
             "issuetype": {"name": "Story"},
@@ -1027,7 +1099,6 @@ def step2_create_or_update_stories(client: JiraClient, skip_existing: bool = Tru
         if SP_ESTIMATE_FIELD and SP_ESTIMATE_FIELD != SP_FIELD:
             issue_fields[SP_ESTIMATE_FIELD] = float(points)
 
-        # Epic association: Modern Jira uses "parent", legacy uses customfield_10014
         if epic_key:
             if EPIC_LINK_FIELD:
                 issue_fields[EPIC_LINK_FIELD] = epic_key
@@ -1048,7 +1119,6 @@ def step2_create_or_update_stories(client: JiraClient, skip_existing: bool = Tru
             client.stats["stories_created"] += 1
             print(f"  [+] Created {st_id} ({points} pts) -> {new_key} [Epic: {epic_key}]")
         else:
-            # Fallback if epic_link failed: try parent
             if epic_key and EPIC_LINK_FIELD in issue_fields:
                 issue_fields.pop(EPIC_LINK_FIELD, None)
                 issue_fields["parent"] = {"key": epic_key}
@@ -1069,199 +1139,264 @@ def step2_create_or_update_stories(client: JiraClient, skip_existing: bool = Tru
 
 
 # ============================================================
-# STEP 3 — CREATE 2 SPRINTS ON THE BOARD
+# STEP 4 — CREATE 4 SPRINTS ON THE BOARD
 # ============================================================
-def step3_create_sprints(client: JiraClient, board_id: int) -> Tuple[Optional[int], Optional[int]]:
-    """
-    Step 3: Creates or reuses 2 sprints on the board.
-    Sets start and end dates so sprints appear on Timeline and Burndown charts.
-    """
-    global SPRINT_1_ID, SPRINT_2_ID
+def step4_create_sprints(client: JiraClient, board_id: int) -> List[int]:
     print("\n" + "=" * 60)
-    print(f"STEP 3 — Create 2 Sprints on Board {board_id}")
+    print(f"STEP 4 — Create 4 Historical Sprints on Board {board_id}")
     print("=" * 60)
 
-    if client.dry_run:
-        SPRINT_1_ID = 37
-        SPRINT_2_ID = 38
-        print(f"  [DRY-RUN] Sprint 1 ID: {SPRINT_1_ID}, Sprint 2 ID: {SPRINT_2_ID}")
-        return SPRINT_1_ID, SPRINT_2_ID
+    sprint_ids: List[int] = []
+    existing_sprints: Dict[str, Dict[str, Any]] = {}
 
-    now = datetime.now(timezone.utc)
-    s1_start = now.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    s1_end = (now + timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    s2_start = (now + timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    s2_end = (now + timedelta(days=28)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    if not client.dry_run:
+        r = client.jira("GET", f"/rest/agile/1.0/board/{board_id}/sprint")
+        if r:
+            for sp in r.get("values", []):
+                sname = sp.get("name")
+                existing_sprints[sname] = sp
 
-    sprint_configs = [
-        {
-            "num": 1,
-            "name": "SSCDT Sprint 1: Foundation",  # <= 30 chars limit
-            "goal": "Deliver ingestion, digital twin core, detection engine, and ML models (Epics 1, 2, 3, 7).",
-            "startDate": s1_start,
-            "endDate": s1_end,
-            "state": "active"  # Active sprint enables Burndown Chart & Active Sprints board immediately
-        },
-        {
-            "num": 2,
-            "name": "SSCDT Sprint 2: Ops & Intel",
-            "goal": "Deliver C8 threat intel, analysis/triage, dashboard, infra, security, testing, docs (Epics 4, 5, 6, 8, 9, 10).",
-            "startDate": s2_start,
-            "endDate": s2_end,
-            "state": "future"
-        }
-    ]
+    for idx, entry in enumerate(SPRINT_SCHEDULE, start=1):
+        sname = sanitize_sprint_name(entry["name"])
+        matched_sp = None
 
-    existing_sprints: Dict[str, int] = {}
-    r = client.jira("GET", f"/rest/agile/1.0/board/{board_id}/sprint")
-    if r:
-        for sp in r.get("values", []):
-            existing_sprints[sp.get("name")] = sp.get("id")
+        for ex_name, ex_obj in existing_sprints.items():
+            if sname in ex_name or f"Sprint {idx}" in ex_name:
+                matched_sp = ex_obj
+                break
 
-    sprint_ids = [None, None]
+        if matched_sp:
+            sid = matched_sp["id"]
+            sprint_ids.append(sid)
+            print(f"  [=] Sprint {idx} already exists as ID: {sid} ('{matched_sp['name']}'). Reusing.")
+            continue
 
-    for idx, scfg in enumerate(sprint_configs):
-        sname = scfg["name"]
-        sid = existing_sprints.get(sname)
-
-        if sid:
-            print(f"  [=] Sprint '{sname}' already exists (ID: {sid}). Updating dates & state...")
-            sprint_ids[idx] = sid
-            # Ensure dates and state are active/future
-            client.jira("PUT", f"/rest/agile/1.0/sprint/{sid}", json_data={
-                "name": sname,
-                "state": scfg["state"],
-                "startDate": scfg["startDate"],
-                "endDate": scfg["endDate"],
-                "goal": scfg["goal"]
-            })
+        if client.dry_run:
+            mock_id = 36 + idx
+            sprint_ids.append(mock_id)
+            print(f"  [DRY-RUN] [+] Create Sprint {idx}: '{sname}' -> ID: {mock_id}")
+            client.stats["sprints_created"] += 1
             continue
 
         payload = {
             "name": sname,
             "originBoardId": board_id,
-            "goal": scfg["goal"],
-            "startDate": scfg["startDate"],
-            "endDate": scfg["endDate"]
+            "goal": entry["goal"],
+            "startDate": entry["startDate"],
+            "endDate": entry["endDate"]
         }
         res = client.jira("POST", "/rest/agile/1.0/sprint", json_data=payload)
         if res and "id" in res:
-            created_sid = res["id"]
-            sprint_ids[idx] = created_sid
-            print(f"  [+] Created Sprint {scfg['num']}: '{sname}' (ID: {created_sid})")
-            # Activate Sprint 1 if desired
-            if scfg["state"] == "active":
-                client.jira("PUT", f"/rest/agile/1.0/sprint/{created_sid}", json_data={
-                    "name": sname,
-                    "state": "active",
-                    "startDate": scfg["startDate"],
-                    "endDate": scfg["endDate"]
-                })
+            sid = res["id"]
+            sprint_ids.append(sid)
+            client.stats["sprints_created"] += 1
+            print(f"  [+] Created Sprint {idx}: '{sname}' (ID: {sid})")
         else:
             client.stats["errors"] += 1
 
-    SPRINT_1_ID = sprint_ids[0]
-    SPRINT_2_ID = sprint_ids[1]
-    return SPRINT_1_ID, SPRINT_2_ID
+        time.sleep(0.3)
+
+    return sprint_ids
 
 
 # ============================================================
-# STEP 4 — ASSIGN STORIES TO SPRINTS
+# STEP 5 — ASSIGN STORIES TO SPRINTS
 # ============================================================
-def step4_assign_stories_to_sprints(client: JiraClient, story_key_map: Dict[str, str], s1_id: Optional[int], s2_id: Optional[int]):
+def step5_assign_stories_to_sprints(client: JiraClient, story_key_map: Dict[str, str], sprint_ids: List[int]):
     """
-    Step 4: Assigns the 39 user stories to Sprint 1 and Sprint 2 in batches of 50.
-      Sprint 1: US-01..US-15, US-27, US-28, US-29 (18 stories)
-      Sprint 2: US-16..US-26, US-30..US-39 (21 stories)
+    Step 5: Distributes the 39 user stories across the 4 sprints:
+      - Sprint 1: US-01..US-10   (10 stories, 72 SP)
+      - Sprint 2: US-12..US-15, US-27..US-29 (7 stories, 58 SP)
+      - Sprint 3: US-16..US-22, US-11 (8 stories, 84 SP)
+      - Sprint 4: US-23..US-26, US-30..US-39 (14 stories, 115 SP)
     """
     print("\n" + "=" * 60)
-    print("STEP 4 — Assign Stories to Sprints")
+    print("STEP 5 — Assign Stories to 4 Sprints")
     print("=" * 60)
 
-    s1_keys: List[str] = []
-    s2_keys: List[str] = []
+    sprint_issue_keys: Dict[int, List[str]] = {1: [], 2: [], 3: [], 4: []}
 
     for st in STORIES_SPECS:
         k = story_key_map.get(st["id"])
         if not k:
             continue
-        if st["sprint"] == 1:
-            s1_keys.append(k)
-        else:
-            s2_keys.append(k)
+        sp_num = st["sprint"]
+        sprint_issue_keys[sp_num].append(k)
 
-    def batch_assign(sprint_id: Optional[int], keys: List[str], label: str):
-        if not sprint_id or not keys:
-            return
-        print(f"[*] Moving {len(keys)} stories into {label} (ID: {sprint_id})...")
+    for sp_num, keys in sprint_issue_keys.items():
+        if sp_num > len(sprint_ids):
+            continue
+        sid = sprint_ids[sp_num - 1]
+        print(f"[*] Assigning {len(keys)} stories to Sprint {sp_num} (ID: {sid})...")
+
         # Batch in groups of 50
         batch_size = 50
         for i in range(0, len(keys), batch_size):
             chunk = keys[i:i + batch_size]
             if client.dry_run:
-                print(f"  [DRY-RUN] Assigned batch of {len(chunk)} issues to {label}: {chunk[:5]}...")
+                print(f"  [DRY-RUN] Assigned {len(chunk)} issues to Sprint {sp_num} (ID: {sid})")
                 continue
-            r = client.jira("POST", f"/rest/agile/1.0/sprint/{sprint_id}/issue", json_data={"issues": chunk})
+            r = client.jira("POST", f"/rest/agile/1.0/sprint/{sid}/issue", json_data={"issues": chunk})
             if r is not None:
-                print(f"  [OK] Assigned {len(chunk)} issues to {label}.")
+                print(f"  [OK] Assigned {len(chunk)} issues to Sprint {sp_num}.")
             else:
                 client.stats["errors"] += 1
-
-    batch_assign(s1_id, s1_keys, "Sprint 1")
-    batch_assign(s2_id, s2_keys, "Sprint 2")
+        time.sleep(0.2)
 
 
 # ============================================================
-# STEP 5 — VERIFY & SUMMARY
+# STEP 6 — MARK EVERY STORY AS DONE
 # ============================================================
-def step5_verify_and_summarize(client: JiraClient, story_key_map: Dict[str, str], s1_id: Optional[int], s2_id: Optional[int]):
-    """
-    Step 5: Verifies story points in each sprint, writes docs/jira_created_keys.json,
-    and prints execution summary.
-    """
+def step6_mark_stories_done(client: JiraClient, story_key_map: Dict[str, str], done_transition_id: str):
     print("\n" + "=" * 60)
-    print("STEP 5 — Verification & Sprint Points Computation")
+    print("STEP 6 — Mark All 39 Stories as DONE (Workflow Transition)")
     print("=" * 60)
 
-    s1_pts = 0.0
-    s2_pts = 0.0
+    for st in STORIES_SPECS:
+        key = story_key_map.get(st["id"])
+        if not key:
+            continue
 
-    if not client.dry_run:
-        # Sum Sprint 1 Points
-        if s1_id:
-            s1_issues_data = client.jira("GET", f"/rest/agile/1.0/sprint/{s1_id}/issue?fields={SP_FIELD},{SP_ESTIMATE_FIELD}")
-            if s1_issues_data:
-                for iss in s1_issues_data.get("issues", []):
-                    f = iss.get("fields", {})
-                    pt = f.get(SP_FIELD) or f.get(SP_ESTIMATE_FIELD) or 0
-                    try:
-                        s1_pts += float(pt)
-                    except (ValueError, TypeError):
-                        pass
+        if client.dry_run:
+            print(f"  [DRY-RUN] Transition {key} -> 'Done' (ID: {done_transition_id})")
+            client.stats["issues_moved_to_done"] += 1
+            continue
 
-        # Sum Sprint 2 Points
-        if s2_id:
-            s2_issues_data = client.jira("GET", f"/rest/agile/1.0/sprint/{s2_id}/issue?fields={SP_FIELD},{SP_ESTIMATE_FIELD}")
-            if s2_issues_data:
-                for iss in s2_issues_data.get("issues", []):
-                    f = iss.get("fields", {})
-                    pt = f.get(SP_FIELD) or f.get(SP_ESTIMATE_FIELD) or 0
-                    try:
-                        s2_pts += float(pt)
-                    except (ValueError, TypeError):
-                        pass
-    else:
-        # Dry-run fallback sum from spec
-        for st in STORIES_SPECS:
-            if st["sprint"] == 1:
-                s1_pts += st["points"]
-            else:
-                s2_pts += st["points"]
+        # Check current issue status first
+        iss_data = client.jira("GET", f"/rest/api/3/issue/{key}?fields=status")
+        curr_status = iss_data.get("fields", {}).get("status", {}).get("name", "") if iss_data else ""
+        if curr_status.lower() in ("done", "closed", "resolved", "completed"):
+            print(f"  [=] {key} is already 'Done'. Skipping.")
+            client.stats["issues_moved_to_done"] += 1
+            continue
 
-    client.stats["sprint1_points"] = int(s1_pts)
-    client.stats["sprint2_points"] = int(s2_pts)
+        # Execute transition to Done
+        r = client.jira("POST", f"/rest/api/3/issue/{key}/transitions", json_data={
+            "transition": {"id": done_transition_id}
+        })
+        if r is not None:
+            print(f"  [OK] Moved {key} ({st['id']}) to DONE")
+            client.stats["issues_moved_to_done"] += 1
+        else:
+            client.stats["errors"] += 1
 
-    # Export mapping to docs/jira_created_keys.json
+        time.sleep(0.15)
+
+
+# ============================================================
+# STEP 7 — COMPLETE (CLOSE) EACH SPRINT
+# ============================================================
+def step7_complete_sprints(client: JiraClient, sprint_ids: List[int]):
+    """
+    Step 7: Closes each of the 4 sprints with historical completeDate.
+    Jira requires a sprint to be in 'active' state before transitioning to 'closed'.
+    """
+    print("\n" + "=" * 60)
+    print("STEP 7 — Complete & Close 4 Sprints (Burndown & Velocity Setup)")
+    print("=" * 60)
+
+    for idx, (entry, sid) in enumerate(zip(SPRINT_SCHEDULE, sprint_ids), start=1):
+        sname = sanitize_sprint_name(entry["name"])
+
+        if client.dry_run:
+            print(f"  [DRY-RUN] Close Sprint {idx} (ID: {sid}) | Completed: {entry['completeDate']}")
+            client.stats["sprints_closed"] += 1
+            continue
+
+        sp_data = client.jira("GET", f"/rest/agile/1.0/sprint/{sid}")
+        curr_state = (sp_data or {}).get("state", "future")
+
+        if curr_state == "closed":
+            print(f"  [=] Sprint {idx} (ID: {sid}) is already CLOSED. Updating dates...")
+            client.jira("PUT", f"/rest/agile/1.0/sprint/{sid}", json_data={
+                "name": sname,
+                "state": "closed",
+                "startDate": entry["startDate"],
+                "endDate": entry["endDate"],
+                "completeDate": entry["completeDate"],
+                "goal": entry["goal"]
+            })
+            client.stats["sprints_closed"] += 1
+            continue
+
+        # If future, activate first because Jira does not support FUTURE -> CLOSED directly
+        if curr_state == "future":
+            client.jira("PUT", f"/rest/agile/1.0/sprint/{sid}", json_data={
+                "name": sname,
+                "state": "active",
+                "startDate": entry["startDate"],
+                "endDate": entry["endDate"],
+                "goal": entry["goal"]
+            })
+            time.sleep(0.2)
+
+        # Transition active sprint to CLOSED
+        close_res = client.jira("PUT", f"/rest/agile/1.0/sprint/{sid}", json_data={
+            "name": sname,
+            "state": "closed",
+            "startDate": entry["startDate"],
+            "endDate": entry["endDate"],
+            "completeDate": entry["completeDate"],
+            "goal": entry["goal"]
+        })
+        if close_res is not None:
+            print(f"  [OK] Successfully CLOSED Sprint {idx} (ID: {sid}) on {entry['completeDate']}")
+            client.stats["sprints_closed"] += 1
+        else:
+            client.stats["errors"] += 1
+
+        time.sleep(0.3)
+
+
+# ============================================================
+# STEP 8 — VERIFY & SUMMARY
+# ============================================================
+def step8_verify_and_summarize(client: JiraClient, story_key_map: Dict[str, str], sprint_ids: List[int]):
+    print("\n" + "=" * 60)
+    print("STEP 8 — Verification & Final Reports Summary")
+    print("=" * 60)
+
+    sprint_points_map = {1: 0, 2: 0, 3: 0, 4: 0}
+
+    for idx, sid in enumerate(sprint_ids, start=1):
+        if client.dry_run:
+            pts = sum(st["points"] for st in STORIES_SPECS if st["sprint"] == idx)
+            sprint_points_map[idx] = pts
+            print(f"  • Sprint {idx} (ID: {sid}): State: closed | {pts} Story Points (Estimated)")
+            continue
+
+        sdata = client.jira("GET", f"/rest/agile/1.0/sprint/{sid}")
+        s_issues = client.jira("GET", f"/rest/agile/1.0/sprint/{sid}/issue?fields={SP_FIELD},{SP_ESTIMATE_FIELD},status")
+        
+        pts = 0.0
+        issue_count = 0
+        if s_issues:
+            issues_list = s_issues.get("issues", [])
+            issue_count = len(issues_list)
+            for iss in issues_list:
+                f = iss.get("fields", {})
+                p = f.get(SP_FIELD) or f.get(SP_ESTIMATE_FIELD) or 0
+                try:
+                    pts += float(p)
+                except (ValueError, TypeError):
+                    pass
+
+        sprint_points_map[idx] = int(pts)
+        sname = (sdata or {}).get("name", f"Sprint {idx}")
+        sstate = (sdata or {}).get("state", "closed")
+        sstart = (sdata or {}).get("startDate", "")
+        send = (sdata or {}).get("endDate", "")
+        scomp = (sdata or {}).get("completeDate", "")
+        print(f"  • Sprint {idx}: '{sname}' (ID: {sid})")
+        print(f"      State: {sstate} | Issues: {issue_count} | Story Points: {int(pts)} SP")
+        print(f"      Dates: {sstart[:10]} to {send[:10]} | Completed: {scomp[:10]}")
+
+    client.stats["sprint_1_points"] = sprint_points_map[1]
+    client.stats["sprint_2_points"] = sprint_points_map[2]
+    client.stats["sprint_3_points"] = sprint_points_map[3]
+    client.stats["sprint_4_points"] = sprint_points_map[4]
+
+    # Save to docs/jira_created_keys.json
     out_dir = Path(__file__).resolve().parent.parent / "docs"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / "jira_created_keys.json"
@@ -1269,15 +1404,17 @@ def step5_verify_and_summarize(client: JiraClient, story_key_map: Dict[str, str]
     export_payload = {
         "project": PROJECT_KEY,
         "board_id": BOARD_ID,
-        "sprint_1_id": s1_id,
-        "sprint_2_id": s2_id,
+        "sprint_ids": sprint_ids,
+        "sprint_schedule": SPRINT_SCHEDULE,
         "epics": EPIC_KEYS,
         "stories": story_key_map,
         "summary": {
             "stories_total": len(story_key_map),
-            "sprint1_points": client.stats["sprint1_points"],
-            "sprint2_points": client.stats["sprint2_points"],
-            "total_points": client.stats["sprint1_points"] + client.stats["sprint2_points"]
+            "sprint_1_points": client.stats["sprint_1_points"],
+            "sprint_2_points": client.stats["sprint_2_points"],
+            "sprint_3_points": client.stats["sprint_3_points"],
+            "sprint_4_points": client.stats["sprint_4_points"],
+            "total_points": sum(sprint_points_map.values())
         },
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
@@ -1285,53 +1422,47 @@ def step5_verify_and_summarize(client: JiraClient, story_key_map: Dict[str, str]
     try:
         with open(out_file, "w", encoding="utf-8") as f:
             json.dump(export_payload, f, indent=2)
-        print(f"  [OK] Saved issue key mapping to: {out_file}")
+        print(f"\n  [OK] Saved final project mapping to: {out_file}")
     except Exception as e:
         print(f"  [!] Failed to save export json: {e}")
 
-    # Final summary output
-    summary_report = {
+    final_report = {
         "project": PROJECT_KEY,
         "stories_created": client.stats["stories_created"],
-        "stories_updated": client.stats["stories_updated"],
-        "total_stories": len(story_key_map),
-        "sprint_1_points": client.stats["sprint1_points"],
-        "sprint_2_points": client.stats["sprint2_points"],
-        "total_story_points": client.stats["sprint1_points"] + client.stats["sprint2_points"],
+        "sprints_created": len(sprint_ids),
+        "sprints_closed": client.stats["sprints_closed"],
+        "issues_moved_to_done": client.stats["issues_moved_to_done"],
+        "sprint_1_points": client.stats["sprint_1_points"],
+        "sprint_2_points": client.stats["sprint_2_points"],
+        "sprint_3_points": client.stats["sprint_3_points"],
+        "sprint_4_points": client.stats["sprint_4_points"],
+        "total_story_points": sum(sprint_points_map.values()),
         "errors": client.stats["errors"]
     }
 
     print("\n" + "=" * 60)
-    print("FINAL EXECUTION SUMMARY")
+    print("FINAL JSON SUMMARY (Ready for Academic Evaluation)")
     print("=" * 60)
-    print(f"  • Stories Created      : {summary_report['stories_created']}")
-    print(f"  • Stories Synchronized : {summary_report['stories_updated']}")
-    print(f"  • Total Active Stories : {summary_report['total_stories']} / 39")
-    print(f"  • Sprint 1 Points      : {summary_report['sprint_1_points']} SP")
-    print(f"  • Sprint 2 Points      : {summary_report['sprint_2_points']} SP")
-    print(f"  • Total Project Points : {summary_report['total_story_points']} SP")
-    print(f"  • Errors Encountered   : {summary_report['errors']}")
-    print("=" * 60)
-    print("\nFinal JSON Output:")
-    print(json.dumps(summary_report, indent=2))
+    print(json.dumps(final_report, indent=2))
 
 
 # ============================================================
 # MAIN ORCHESTRATOR
 # ============================================================
 def main():
-    parser = argparse.ArgumentParser(description="Fill existing SSCDT Jira board with stories, estimation, and sprints")
+    parser = argparse.ArgumentParser(description="Populate and simulate 4 completed sprints on Jira Cloud")
     parser.add_argument("--url", default=JIRA_URL, help="Jira base URL")
     parser.add_argument("--email", default=EMAIL, help="Jira account email")
     parser.add_argument("--token", default=API_TOKEN, help="Jira API token")
     parser.add_argument("--dry-run", action="store_true", help="Print payloads without executing")
     parser.add_argument("--skip-existing", action="store_true", default=True, help="Skip creating existing issues and synchronize estimation")
+    parser.add_argument("--sprints-only", action="store_true", help="Only create and close sprints, skipping story creation")
     args = parser.parse_args()
 
     print("=" * 70)
-    print(" SSCDT Jira Board Populator & Burndown Synchronizer")
-    print(f" Target URL : {args.url}")
-    print(f" Project Key: {PROJECT_KEY} | Board: {BOARD_NAME}")
+    print(" SSCDT Jira Historical 4-Sprint Simulation & Burndown Setup")
+    print(f" Target Instance : {args.url}")
+    print(f" Project Key     : {PROJECT_KEY} | Board: {BOARD_NAME}")
     print("=" * 70)
 
     client = JiraClient(args.url, args.email, args.token, dry_run=args.dry_run)
@@ -1339,23 +1470,48 @@ def main():
     # STEP 0: Discover Fields
     step0_discover_fields(client)
 
-    # STEP 1: Verify the Board
+    # STEP 1: Verify Board
     board_id = step1_verify_board(client)
     if not board_id:
         print("[FATAL] Board could not be verified. Aborting.")
         sys.exit(1)
 
-    # STEP 2: Create / Synchronize 39 Stories
-    story_key_map = step2_create_or_update_stories(client, skip_existing=args.skip_existing)
+    # STEP 2: Discover Transitions
+    done_id = step2_discover_transitions(client)
 
-    # STEP 3: Create / Configure Sprints (with start/end dates & active state)
-    s1_id, s2_id = step3_create_sprints(client, board_id)
+    # STEP 3: Create / Synchronize 39 Stories
+    if args.sprints_only:
+        print("[INFO] --sprints-only specified. Fetching existing story mapping...")
+        story_key_map = {}
+        if not client.dry_run:
+            s_res = client.jira("POST", "/rest/api/3/search/jql", json_data={
+                "jql": f'project = "{PROJECT_KEY}" AND issuetype = "Story"',
+                "maxResults": 150,
+                "fields": ["summary", "key"]
+            })
+            if s_res:
+                for iss in s_res.get("issues", []):
+                    stext = iss.get("fields", {}).get("summary", "")
+                    for st in STORIES_SPECS:
+                        if st["id"] in stext:
+                            story_key_map[st["id"]] = iss.get("key")
+    else:
+        story_key_map = step3_create_or_update_stories(client, skip_existing=args.skip_existing)
 
-    # STEP 4: Assign Stories to Sprints
-    step4_assign_stories_to_sprints(client, story_key_map, s1_id, s2_id)
+    # STEP 4: Create 4 Sprints
+    sprint_ids = step4_create_sprints(client, board_id)
 
-    # STEP 5: Verify & Report
-    step5_verify_and_summarize(client, story_key_map, s1_id, s2_id)
+    # STEP 5: Assign Stories to Sprints
+    step5_assign_stories_to_sprints(client, story_key_map, sprint_ids)
+
+    # STEP 6: Mark Every Story as DONE
+    step6_mark_stories_done(client, story_key_map, done_id)
+
+    # STEP 7: Complete (Close) Each Sprint
+    step7_complete_sprints(client, sprint_ids)
+
+    # STEP 8: Verify & Output Report
+    step8_verify_and_summarize(client, story_key_map, sprint_ids)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,46 @@
 {
   "project": "SSCDT",
   "board_id": 34,
-  "sprint_1_id": 37,
-  "sprint_2_id": 38,
+  "sprint_ids": [
+    41,
+    42,
+    43,
+    44
+  ],
+  "sprint_schedule": [
+    {
+      "name": "SSCDT Sprint 1: Foundation",
+      "display_name": "SSCDT Sprint 1 \u2014 Ingestion & Twin Foundation",
+      "startDate": "2026-08-05T09:00:00.000+05:30",
+      "endDate": "2026-08-18T18:00:00.000+05:30",
+      "completeDate": "2026-08-18T18:30:00.000+05:30",
+      "goal": "Deliver REST + MQTT ingestion, PostgreSQL 20-table schema, NetworkX digital twin, live state manager. (Epic 1, Epic 2 core)"
+    },
+    {
+      "name": "SSCDT Sprint 2: Detect & ML",
+      "display_name": "SSCDT Sprint 2 \u2014 Detection & Machine Learning",
+      "startDate": "2026-08-19T09:00:00.000+05:30",
+      "endDate": "2026-09-01T18:00:00.000+05:30",
+      "completeDate": "2026-09-01T18:30:00.000+05:30",
+      "goal": "Deliver 10 rule-based detectors, 9 state machines, 6 correlation rules, risk scoring, ML models (Isolation Forest + One-Class SVM). (Epic 3, Epic 7)"
+    },
+    {
+      "name": "SSCDT Sprint 3: Threat Intel",
+      "display_name": "SSCDT Sprint 3 \u2014 Threat Intel (C8) & Analysis",
+      "startDate": "2026-09-02T09:00:00.000+05:30",
+      "endDate": "2026-09-15T18:00:00.000+05:30",
+      "completeDate": "2026-09-15T18:30:00.000+05:30",
+      "goal": "Deliver IOC extraction, 3-provider enrichment, C8 risk reweighting, blast radius, attack story engine, auto-triage, XAI. (Epic 4, Epic 5)"
+    },
+    {
+      "name": "SSCDT Sprint 4: Ops & Docs",
+      "display_name": "SSCDT Sprint 4 \u2014 Dashboard, Infra & Docs",
+      "startDate": "2026-09-16T09:00:00.000+05:30",
+      "endDate": "2026-09-29T18:00:00.000+05:30",
+      "completeDate": "2026-09-29T18:30:00.000+05:30",
+      "goal": "Deliver 4-tab dashboard, geographic map, Docker + Compose, CI/CD, Terraform AWS, security docs, testing, 53 requirements. (Epic 6, 8, 9, 10)"
+    }
+  ],
   "epics": {
     "EPIC-1": "SSCDT-33",
     "EPIC-2": "SSCDT-34",
@@ -26,11 +64,14 @@
     "US-08": "SSCDT-50",
     "US-09": "SSCDT-51",
     "US-10": "SSCDT-52",
-    "US-11": "SSCDT-53",
     "US-12": "SSCDT-54",
     "US-13": "SSCDT-55",
     "US-14": "SSCDT-56",
     "US-15": "SSCDT-57",
+    "US-27": "SSCDT-69",
+    "US-28": "SSCDT-70",
+    "US-29": "SSCDT-71",
+    "US-11": "SSCDT-53",
     "US-16": "SSCDT-58",
     "US-17": "SSCDT-59",
     "US-18": "SSCDT-60",
@@ -42,9 +83,6 @@
     "US-24": "SSCDT-66",
     "US-25": "SSCDT-67",
     "US-26": "SSCDT-68",
-    "US-27": "SSCDT-69",
-    "US-28": "SSCDT-70",
-    "US-29": "SSCDT-71",
     "US-30": "SSCDT-72",
     "US-31": "SSCDT-73",
     "US-32": "SSCDT-74",
@@ -58,9 +96,11 @@
   },
   "summary": {
     "stories_total": 39,
-    "sprint1_points": 143,
-    "sprint2_points": 186,
+    "sprint_1_points": 72,
+    "sprint_2_points": 58,
+    "sprint_3_points": 84,
+    "sprint_4_points": 115,
     "total_points": 329
   },
-  "updated_at": "2026-10-01T05:05:39.827570+00:00"
+  "updated_at": "2026-10-01T05:30:10.410046+00:00"
 }
