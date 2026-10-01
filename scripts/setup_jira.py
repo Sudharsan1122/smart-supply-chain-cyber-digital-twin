@@ -949,22 +949,27 @@ class JiraClient:
             dummy._content = b"{}"
             return dummy
 
-        try:
-            resp = self.session.request(method, url, **kwargs)
-            if resp.status_code >= 400:
-                print(f"[!] {method.upper()} {path} -> HTTP {resp.status_code}")
-                try:
-                    err_json = resp.json()
-                    print(f"    Error details: {json.dumps(err_json)[:250]}")
-                except Exception:
-                    print(f"    Response text: {resp.text[:200]}")
-            return resp
-        except Exception as exc:
-            print(f"[ERROR] Request to {url} failed: {exc}")
-            dummy = requests.Response()
-            dummy.status_code = 500
-            dummy._content = b"{}"
-            return dummy
+        for attempt in range(1, 4):
+            try:
+                resp = self.session.request(method, url, **kwargs)
+                if resp.status_code >= 400:
+                    print(f"[!] {method.upper()} {path} -> HTTP {resp.status_code}")
+                    try:
+                        err_json = resp.json()
+                        print(f"    Error details: {json.dumps(err_json)[:250]}")
+                    except Exception:
+                        print(f"    Response text: {resp.text[:200]}")
+                return resp
+            except Exception as exc:
+                if attempt < 3:
+                    print(f"[WARN] Request to {url} failed ({exc}). Retrying attempt {attempt+1}/3 in 2s...")
+                    time.sleep(2)
+                else:
+                    print(f"[ERROR] Request to {url} failed after 3 attempts: {exc}")
+                    dummy = requests.Response()
+                    dummy.status_code = 500
+                    dummy._content = b"{}"
+                    return dummy
 
     def discover_fields(self):
         """Discovers custom field IDs for Epic Name, Epic Link, and Story Points."""
@@ -1074,7 +1079,7 @@ def create_epics(client: JiraClient) -> Dict[str, str]:
     # Check existing epics via JQL search
     existing_epics = {}
     jql = f'project = "{PROJECT_KEY}" AND issuetype = "Epic"'
-    search_r = client.jira("GET", f"/rest/api/3/search?jql={jql}&maxResults=100")
+    search_r = client.jira("POST", "/rest/api/3/search", json={"jql": jql, "maxResults": 100, "fields": ["summary", "key"]})
     if search_r.status_code == 200:
         for issue in search_r.json().get("issues", []):
             summary = issue.get("fields", {}).get("summary", "")
@@ -1132,7 +1137,7 @@ def create_stories(client: JiraClient, epic_key_map: Dict[str, str]) -> Dict[str
     # Check existing stories
     existing_stories = {}
     jql = f'project = "{PROJECT_KEY}" AND issuetype = "Story"'
-    search_r = client.jira("GET", f"/rest/api/3/search?jql={jql}&maxResults=150")
+    search_r = client.jira("POST", "/rest/api/3/search", json={"jql": jql, "maxResults": 150, "fields": ["summary", "key"]})
     if search_r.status_code == 200:
         for issue in search_r.json().get("issues", []):
             summary = issue.get("fields", {}).get("summary", "")
@@ -1233,12 +1238,12 @@ def create_sprints(client: JiraClient, board_id: int) -> Tuple[Optional[int], Op
     sprint_defs = [
         {
             "num": 1,
-            "name": "SSCDT Sprint 1 — Foundation & Detection",
+            "name": "SSCDT Sprint 1: Foundation",
             "goal": "Deliver ingestion, digital twin core, and detection engine (Epics 1, 2, 3, 7)."
         },
         {
             "num": 2,
-            "name": "SSCDT Sprint 2 — Intelligence, Analysis & Ops",
+            "name": "SSCDT Sprint 2: Ops & Intel",
             "goal": "Deliver threat intel C8, analysis/triage, dashboard, infra, security, testing, docs (Epics 4, 5, 6, 8, 9, 10)."
         }
     ]
@@ -1266,7 +1271,8 @@ def create_sprints(client: JiraClient, board_id: int) -> Tuple[Optional[int], Op
             print(f"  [+] Created Sprint {sdef['num']}: '{sname}' (ID: {sid})")
         else:
             client.stats["errors"] += 1
-            sprint_ids[idx] = idx + 101  # Fallback for dry-run
+            if client.dry_run:
+                sprint_ids[idx] = idx + 101  # Fallback only for dry-run
 
     return sprint_ids[0], sprint_ids[1]
 
