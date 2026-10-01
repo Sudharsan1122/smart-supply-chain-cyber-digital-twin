@@ -31,13 +31,13 @@ import requests
 # CONFIGURATION
 # ============================================================
 JIRA_URL = os.getenv("JIRA_URL", "https://mastersudhan1234.atlassian.net").rstrip("/")
-EMAIL = os.getenv("JIRA_EMAIL", "your-email@example.com")
-API_TOKEN = os.getenv("JIRA_API_TOKEN", "your-api-token")
+EMAIL = os.getenv("JIRA_EMAIL", "mastersudhan1234@gmail.com")
+API_TOKEN = os.getenv("JIRA_API_TOKEN", "ATATT3xFfGF0gSW8B6gPTh9p_ljifNpbX_Y6O3i-IKQz0mnBi_BY6Qs3DhPE3BCsqtD3t1UZ1ullQojbxbCFruuw4D8dD_5kKXd9wejw388zN3jaBc1AHrR2HC--E4lQc25KAz4mir6xXdNVwXmtb-SlO-P7G2ei_LJVg0YQsKudAFamMhSQsqY=A67CAAF1")
 PROJECT_KEY = "SSCDT"
 PROJECT_NAME = "Smart Supply Chain Cyber Digital Twin"
 PROJECT_TYPE_KEY = "software"
 PROJECT_TEMPLATE_KEY = "com.pyxis.greenhopper.jira:gh-scrum-template"
-ACCOUNT_ID = os.getenv("JIRA_ACCOUNT_ID", "your-account-id")  # Auto-detected if placeholder
+ACCOUNT_ID = os.getenv("JIRA_ACCOUNT_ID", "712020:3edf19c5-b975-470a-9e1f-bec93774ae4d")
 
 COMPONENTS_LIST = [
     "Ingestion",

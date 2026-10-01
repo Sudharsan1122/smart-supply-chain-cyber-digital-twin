@@ -34,7 +34,7 @@ import requests
 # ============================================================
 JIRA_URL    = os.getenv("JIRA_BASE_URL", "https://mastersudhan1234.atlassian.net").rstrip("/")
 EMAIL       = os.getenv("JIRA_USER_EMAIL", "mastersudhan1234@gmail.com")
-API_TOKEN   = os.getenv("JIRA_API_TOKEN", "ATATT3xFfGF0mzIL7Fl3rw-1tSd_hSW-9xjQpXaEfq-C-eD4QY5nSTjTDRnX2WT7p4Y4ScacWOw1qpVdaTeFL7AXpKr5XbPWSx1lQmK3LX7Jag6QHlHAZBgek6h9w_tw7xKp0b8JT3-20WiBArZw3DyUMT0TFvfBtBN7kSWRL1LzMUuj7kRDp4Q=650A0802")
+API_TOKEN   = os.getenv("JIRA_API_TOKEN", "ATATT3xFfGF0gSW8B6gPTh9p_ljifNpbX_Y6O3i-IKQz0mnBi_BY6Qs3DhPE3BCsqtD3t1UZ1ullQojbxbCFruuw4D8dD_5kKXd9wejw388zN3jaBc1AHrR2HC--E4lQc25KAz4mir6xXdNVwXmtb-SlO-P7G2ei_LJVg0YQsKudAFamMhSQsqY=A67CAAF1")
 PROJECT_KEY = "SSCDT"
 BOARD_NAME  = "SSCDT board"
 ACCOUNT_ID  = os.getenv("JIRA_ACCOUNT_ID", "712020:3edf19c5-b975-470a-9e1f-bec93774ae4d")
